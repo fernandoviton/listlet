@@ -1,0 +1,43 @@
+# Config file - contains deployment-specific values
+config.js
+
+# Keep the example in repo
+!config.example.js
+
+# Tasks file - contains specific tasks
+azure-function/tasks.json
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build output
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Azure Functions
+azure-function/local.settings.json
+azure-function/.python_packages/
+azure-function/__pycache__/
+.azure/
