@@ -20,11 +20,12 @@ A simple, responsive task list application that displays tasks with three possib
 [
   { "name": "Task name here", "status": "not-started" },
   { "name": "Another task", "status": "in-progress" },
-  { "name": "Completed task", "status": "done" }
+  { "name": "Completed task", "status": "done" },
+  { "name": "Deleted task", "status": "removed" }
 ]
 ```
 
-**Status values:** `not-started` | `in-progress` | `done`
+**Status values:** `not-started` | `in-progress` | `done` | `removed`
 
 ## File Structure
 ```
@@ -134,13 +135,26 @@ const CONFIG = {
 };
 ```
 
-## Updating Tasks
+## Using the App
 
-**Via the App:** Click tasks to cycle their status (auto-saves)
+**Add a task:** Type in the input field and click "Add" or press Enter
 
-**Via Azure Portal:**
+**Cycle task status:** Click a task to cycle through: not-started → in-progress → done → removed
+
+**Status icons:**
+- ○ Not started (gray)
+- ◐ In progress (blue)
+- ✓ Done (green, strikethrough)
+- ✕ Removed (hidden from list)
+
+All changes auto-save to Azure.
+
+## Managing Tasks via Azure Portal
+
 1. Storage Account → Containers → tasklists
 2. Click `tasks.json` → **Edit**
 3. Modify and save
 
-**Create New Lists:** Upload a new `{name}.json` to blob storage, then change `LIST_NAME` in index.html
+**Recover removed tasks:** Edit the JSON and change `"status": "removed"` back to `"not-started"`
+
+**Create New Lists:** Upload a new `{name}.json` to blob storage, then change `LIST_NAME` in config.js

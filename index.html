@@ -84,6 +84,18 @@
             color: #999;
             text-decoration: line-through;
         }
+        /* Status: removed */
+        .task.removed {
+            background: #ffebee;
+            opacity: 0.6;
+        }
+        .task.removed .task-icon {
+            color: #d32f2f;
+        }
+        .task.removed .task-name {
+            color: #999;
+            text-decoration: line-through;
+        }
         .loading, .error {
             text-align: center;
             padding: 40px;
@@ -107,11 +119,49 @@
         .saving-indicator.visible {
             opacity: 1;
         }
+        /* Add task form */
+        .add-task-form {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .add-task-input {
+            flex: 1;
+            padding: 12px 16px;
+            font-size: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .add-task-input:focus {
+            border-color: #2196f3;
+        }
+        .add-task-btn {
+            padding: 12px 24px;
+            font-size: 1rem;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .add-task-btn:hover {
+            background: #1976d2;
+        }
+        .add-task-btn:active {
+            background: #1565c0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Tasks</h1>
+        <form class="add-task-form" id="addTaskForm">
+            <input type="text" class="add-task-input" id="taskInput" placeholder="Add a new task..." required>
+            <button type="submit" class="add-task-btn">Add</button>
+        </form>
         <ul class="task-list" id="taskList">
             <li class="loading">Loading tasks...</li>
         </ul>
@@ -132,15 +182,18 @@
         const statusIcons = {
             'not-started': '○',
             'in-progress': '◐',
-            'done': '✓'
+            'done': '✓',
+            'removed': '✕'
         };
 
         // Status cycle order
-        const statusCycle = ['not-started', 'in-progress', 'done'];
+        const statusCycle = ['not-started', 'in-progress', 'done', 'removed'];
 
         // DOM elements
         const taskListEl = document.getElementById('taskList');
         const savingIndicator = document.getElementById('savingIndicator');
+        const addTaskForm = document.getElementById('addTaskForm');
+        const taskInput = document.getElementById('taskInput');
 
         // Fetch tasks from API
         async function fetchTasks() {
@@ -208,6 +261,18 @@
             const nextIndex = (currentIndex + 1) % statusCycle.length;
             
             tasks[index].status = statusCycle[nextIndex];
+            renderTasks();
+            saveTasks();
+        });
+
+        // Handle add task
+        addTaskForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = taskInput.value.trim();
+            if (!name) return;
+
+            tasks.push({ name, status: 'not-started' });
+            taskInput.value = '';
             renderTasks();
             saveTasks();
         });
