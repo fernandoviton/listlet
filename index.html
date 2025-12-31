@@ -66,14 +66,14 @@
         }
         /* Status: in-progress */
         .task.in-progress {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
+            background: #fff8e1;
+            border-left: 4px solid #ff9800;
         }
         .task.in-progress .task-icon {
-            color: #2196f3;
+            color: #ff9800;
         }
         .task.in-progress .task-name {
-            color: #1976d2;
+            color: #e65100;
             font-weight: 500;
         }
         /* Status: done */
@@ -83,6 +83,18 @@
         .task.done .task-name {
             color: #999;
             text-decoration: line-through;
+        }
+        /* Status: needs-review */
+        .task.needs-review {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .task.needs-review .task-icon {
+            color: #2196f3;
+        }
+        .task.needs-review .task-name {
+            color: #1976d2;
+            font-weight: 500;
         }
         /* Status: removed */
         .task.removed {
@@ -182,12 +194,13 @@
         const statusIcons = {
             'not-started': '○',
             'in-progress': '◐',
+            'needs-review': '?',
             'done': '✓',
             'removed': '✕'
         };
 
         // Status cycle order
-        const statusCycle = ['not-started', 'in-progress', 'done', 'removed'];
+        const statusCycle = ['not-started', 'in-progress', 'needs-review', 'done', 'removed'];
 
         // DOM elements
         const taskListEl = document.getElementById('taskList');
