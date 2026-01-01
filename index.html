@@ -165,6 +165,119 @@
         .add-task-btn:active {
             background: #1565c0;
         }
+        /* Tag groups */
+        .tag-group {
+            margin-bottom: 24px;
+        }
+        .tag-group-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tag-group-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .tag-group-count {
+            margin-left: 8px;
+            font-size: 0.75rem;
+            color: #999;
+            font-weight: normal;
+        }
+        /* Task tags */
+        .task-tags {
+            display: flex;
+            gap: 4px;
+            margin-left: 8px;
+        }
+        .task-tag {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            background: #e0e0e0;
+            color: #666;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .task-tag:hover {
+            background: #bdbdbd;
+        }
+        .add-tag-btn {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            background: transparent;
+            color: #999;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .add-tag-btn:hover {
+            background: #f5f5f5;
+            color: #666;
+        }
+        /* Tag input modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-overlay.visible {
+            display: flex;
+        }
+        .modal {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 300px;
+        }
+        .modal h3 {
+            margin: 0 0 16px 0;
+            color: #333;
+        }
+        .modal input {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            outline: none;
+        }
+        .modal input:focus {
+            border-color: #2196f3;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 8px 16px;
+            font-size: 0.875rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .modal-btn.primary {
+            background: #2196f3;
+            color: white;
+        }
+        .modal-btn.secondary {
+            background: #e0e0e0;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -174,9 +287,22 @@
             <input type="text" class="add-task-input" id="taskInput" placeholder="Add a new task..." required>
             <button type="submit" class="add-task-btn">Add</button>
         </form>
-        <ul class="task-list" id="taskList">
-            <li class="loading">Loading tasks...</li>
-        </ul>
+        <div id="taskList">
+            <div class="loading">Loading tasks...</div>
+        </div>
+    </div>
+    <div class="saving-indicator" id="savingIndicator">Saving...</div>
+    
+    <!-- Tag input modal -->
+    <div class="modal-overlay" id="tagModal">
+        <div class="modal">
+            <h3>Add Tag</h3>
+            <input type="text" id="tagInput" placeholder="Enter tag name...">
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelTagBtn">Cancel</button>
+                <button class="modal-btn primary" id="saveTagBtn">Add</button>
+            </div>
+        </div>
     </div>
     <div class="saving-indicator" id="savingIndicator">Saving...</div>
 
@@ -189,11 +315,11 @@
 
         // Mock data for local testing
         const MOCK_TASKS = [
-            { name: 'Set up project structure', status: 'done' },
-            { name: 'Create basic UI components', status: 'done' },
-            { name: 'Implement API integration', status: 'in-progress' },
-            { name: 'Add authentication', status: 'needs-review' },
-            { name: 'Write unit tests', status: 'not-started' },
+            { name: 'Set up project structure', status: 'done', tags: ['backend'] },
+            { name: 'Create basic UI components', status: 'done', tags: ['frontend'] },
+            { name: 'Implement API integration', status: 'in-progress', tags: ['backend', 'frontend'] },
+            { name: 'Add authentication', status: 'needs-review', tags: ['backend'] },
+            { name: 'Write unit tests', status: 'not-started', tags: ['testing'] },
             { name: 'Deploy to production', status: 'not-started' },
             { name: 'Old feature removed', status: 'removed' }
         ];
@@ -201,6 +327,7 @@
         // State
         let tasks = [];
         let isSaving = false;
+        let editingTagIndex = null; // Track which task is being edited for tags
 
         // Status icons
         const statusIcons = {
@@ -219,6 +346,10 @@
         const savingIndicator = document.getElementById('savingIndicator');
         const addTaskForm = document.getElementById('addTaskForm');
         const taskInput = document.getElementById('taskInput');
+        const tagModal = document.getElementById('tagModal');
+        const tagInput = document.getElementById('tagInput');
+        const saveTagBtn = document.getElementById('saveTagBtn');
+        const cancelTagBtn = document.getElementById('cancelTagBtn');
 
         // Fetch tasks from API (or mock)
         async function fetchTasks() {
@@ -269,19 +400,71 @@
             }
         }
 
-        // Render tasks
+        // Render tasks grouped by tags
         function renderTasks() {
             if (tasks.length === 0) {
-                taskListEl.innerHTML = '<li class="loading">No tasks found</li>';
+                taskListEl.innerHTML = '<div class="loading">No tasks found</div>';
                 return;
             }
 
-            taskListEl.innerHTML = tasks.map((task, index) => `
+            // Collect all unique tags and group tasks
+            const tagGroups = new Map();
+            const untaggedTasks = [];
+            
+            tasks.forEach((task, index) => {
+                if (task.tags && task.tags.length > 0) {
+                    task.tags.forEach(tag => {
+                        if (!tagGroups.has(tag)) {
+                            tagGroups.set(tag, []);
+                        }
+                        tagGroups.get(tag).push({ task, index });
+                    });
+                } else {
+                    untaggedTasks.push({ task, index });
+                }
+            });
+
+            // Sort tags alphabetically
+            const sortedTags = Array.from(tagGroups.keys()).sort();
+            
+            let html = '';
+            
+            // Render each tag group
+            sortedTags.forEach(tag => {
+                const groupTasks = tagGroups.get(tag);
+                html += renderTagGroup(tag, groupTasks);
+            });
+            
+            // Render untagged group at the end
+            if (untaggedTasks.length > 0) {
+                html += renderTagGroup('Untagged', untaggedTasks);
+            }
+
+            taskListEl.innerHTML = html;
+        }
+
+        // Render a single tag group
+        function renderTagGroup(tagName, groupTasks) {
+            const tasksHtml = groupTasks.map(({ task, index }) => `
                 <li class="task ${task.status}" data-index="${index}">
                     <span class="task-icon">${statusIcons[task.status] || '○'}</span>
                     <span class="task-name">${escapeHtml(task.name)}</span>
+                    <div class="task-tags">
+                        ${(task.tags || []).map(t => `<span class="task-tag" data-index="${index}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('')}
+                        <button class="add-tag-btn" data-index="${index}">+</button>
+                    </div>
                 </li>
             `).join('');
+
+            return `
+                <div class="tag-group">
+                    <div class="tag-group-header">
+                        <span class="tag-group-name">${escapeHtml(tagName)}</span>
+                        <span class="tag-group-count">(${groupTasks.length})</span>
+                    </div>
+                    <ul class="task-list">${tasksHtml}</ul>
+                </div>
+            `;
         }
 
         // Escape HTML to prevent XSS
@@ -293,6 +476,27 @@
 
         // Handle task click - cycle status
         taskListEl.addEventListener('click', (e) => {
+            // Handle add tag button
+            if (e.target.classList.contains('add-tag-btn')) {
+                e.stopPropagation();
+                editingTagIndex = parseInt(e.target.dataset.index, 10);
+                tagInput.value = '';
+                tagModal.classList.add('visible');
+                tagInput.focus();
+                return;
+            }
+            
+            // Handle tag click (remove tag)
+            if (e.target.classList.contains('task-tag')) {
+                e.stopPropagation();
+                const index = parseInt(e.target.dataset.index, 10);
+                const tag = e.target.dataset.tag;
+                tasks[index].tags = tasks[index].tags.filter(t => t !== tag);
+                renderTasks();
+                saveTasks();
+                return;
+            }
+            
             const taskEl = e.target.closest('.task');
             if (!taskEl) return;
 
@@ -312,10 +516,46 @@
             const name = taskInput.value.trim();
             if (!name) return;
 
-            tasks.push({ name, status: 'not-started' });
+            tasks.push({ name, status: 'not-started', tags: [] });
             taskInput.value = '';
             renderTasks();
             saveTasks();
+        });
+
+        // Tag modal handlers
+        function closeTagModal() {
+            tagModal.classList.remove('visible');
+            editingTagIndex = null;
+        }
+
+        cancelTagBtn.addEventListener('click', closeTagModal);
+        
+        tagModal.addEventListener('click', (e) => {
+            if (e.target === tagModal) closeTagModal();
+        });
+
+        saveTagBtn.addEventListener('click', () => {
+            const tag = tagInput.value.trim().toLowerCase();
+            if (!tag || editingTagIndex === null) return;
+            
+            if (!tasks[editingTagIndex].tags) {
+                tasks[editingTagIndex].tags = [];
+            }
+            if (!tasks[editingTagIndex].tags.includes(tag)) {
+                tasks[editingTagIndex].tags.push(tag);
+                renderTasks();
+                saveTasks();
+            }
+            closeTagModal();
+        });
+
+        tagInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveTagBtn.click();
+            } else if (e.key === 'Escape') {
+                closeTagModal();
+            }
         });
 
         // Initialize
