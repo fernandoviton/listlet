@@ -185,6 +185,18 @@
         // Use config from config.js
         const API_BASE = CONFIG.API_BASE;
         const LIST_NAME = CONFIG.LIST_NAME;
+        const IS_MOCK = API_BASE === 'mock';
+
+        // Mock data for local testing
+        const MOCK_TASKS = [
+            { name: 'Set up project structure', status: 'done' },
+            { name: 'Create basic UI components', status: 'done' },
+            { name: 'Implement API integration', status: 'in-progress' },
+            { name: 'Add authentication', status: 'needs-review' },
+            { name: 'Write unit tests', status: 'not-started' },
+            { name: 'Deploy to production', status: 'not-started' },
+            { name: 'Old feature removed', status: 'removed' }
+        ];
 
         // State
         let tasks = [];
@@ -208,8 +220,16 @@
         const addTaskForm = document.getElementById('addTaskForm');
         const taskInput = document.getElementById('taskInput');
 
-        // Fetch tasks from API
+        // Fetch tasks from API (or mock)
         async function fetchTasks() {
+            if (IS_MOCK) {
+                // Load from localStorage or use default mock data
+                const saved = localStorage.getItem('mockTasks');
+                tasks = saved ? JSON.parse(saved) : [...MOCK_TASKS];
+                renderTasks();
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/${LIST_NAME}`);
                 if (!response.ok) throw new Error('Failed to fetch tasks');
@@ -220,8 +240,16 @@
             }
         }
 
-        // Save tasks to API
+        // Save tasks to API (or mock)
         async function saveTasks() {
+            if (IS_MOCK) {
+                localStorage.setItem('mockTasks', JSON.stringify(tasks));
+                // Brief visual feedback
+                savingIndicator.classList.add('visible');
+                setTimeout(() => savingIndicator.classList.remove('visible'), 300);
+                return;
+            }
+            
             if (isSaving) return;
             isSaving = true;
             savingIndicator.classList.add('visible');
