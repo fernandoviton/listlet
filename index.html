@@ -376,7 +376,9 @@
         }
 
         // Save tasks to API (or mock)
-        async function saveTasks() {
+        // Flow: GET latest → apply mutation → PUT → update local state → re-render
+        // @param {Object} mutation - {fn: string, args: array} describing the mutation to apply
+        async function saveTasks(mutation) {
             if (IS_MOCK) {
                 localStorage.setItem('mockTasks', JSON.stringify(getTasks()));
                 // Brief visual feedback
@@ -390,12 +392,29 @@
             savingIndicator.classList.add('visible');
             
             try {
-                const response = await fetch(`${API_BASE}/${LIST_NAME}`, {
+                // 1. GET latest server data
+                const getResponse = await fetch(`${API_BASE}/${LIST_NAME}`);
+                if (!getResponse.ok) throw new Error('Failed to fetch latest tasks');
+                const serverTasks = await getResponse.json();
+                
+                // 2. Apply the mutation to server data
+                if (mutation) {
+                    TaskMutations.applyMutation(serverTasks, mutation);
+                }
+                
+                // 3. PUT the merged result
+                const putResponse = await fetch(`${API_BASE}/${LIST_NAME}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getTasks())
+                    body: JSON.stringify(serverTasks)
                 });
-                if (!response.ok) throw new Error('Failed to save');
+                if (!putResponse.ok) throw new Error('Failed to save');
+                
+                // 4. Update local state with the merged result
+                setTasks(serverTasks);
+                
+                // 5. Re-render to reflect any server-side changes we merged in
+                renderTasks();
             } catch (error) {
                 console.error('Save error:', error);
             } finally {
@@ -498,7 +517,7 @@
                 const tag = e.target.dataset.tag;
                 removeTagFromTask(taskId, tag);
                 renderTasks();
-                saveTasks();
+                saveTasks({ fn: 'removeTagFromTask', args: [taskId, tag] });
                 return;
             }
             
@@ -508,7 +527,7 @@
             const taskId = parseInt(taskEl.dataset.index, 10);
             cycleTaskStatus(taskId);
             renderTasks();
-            saveTasks();
+            saveTasks({ fn: 'cycleTaskStatus', args: [taskId] });
         });
 
         // Handle add task
@@ -520,7 +539,7 @@
             addTask(name);
             taskInput.value = '';
             renderTasks();
-            saveTasks();
+            saveTasks({ fn: 'addTask', args: [name] });
         });
 
         // Tag modal handlers
@@ -541,7 +560,7 @@
             
             if (addTagToTask(editingTagIndex, tag)) {
                 renderTasks();
-                saveTasks();
+                saveTasks({ fn: 'addTagToTask', args: [editingTagIndex, tag] });
             }
             closeTagModal();
         });
