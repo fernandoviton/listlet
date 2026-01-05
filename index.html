@@ -307,6 +307,7 @@
     <div class="saving-indicator" id="savingIndicator">Saving...</div>
 
     <script src="config.js"></script>
+    <script src="task-store.js"></script>
     <script>
         // Use config from config.js
         const API_BASE = CONFIG.API_BASE;
@@ -324,10 +325,15 @@
             { name: 'Old feature removed', status: 'removed' }
         ];
 
-        // State
-        let tasks = [];
+        // State (UI-only state, task state is in TaskStore)
         let isSaving = false;
         let editingTagIndex = null; // Track which task is being edited for tags
+
+        // Destructure TaskStore for convenience
+        const { 
+            getTasks, setTasks, getTask, getStatusCycle,
+            addTask, updateTaskStatus, addTagToTask, removeTagFromTask, cycleTaskStatus 
+        } = TaskStore;
 
         // Status icons
         const statusIcons = {
@@ -337,9 +343,6 @@
             'done': '✓',
             'removed': '✕'
         };
-
-        // Status cycle order
-        const statusCycle = ['not-started', 'in-progress', 'needs-review', 'done', 'removed'];
 
         // DOM elements
         const taskListEl = document.getElementById('taskList');
@@ -356,7 +359,7 @@
             if (IS_MOCK) {
                 // Load from localStorage or use default mock data
                 const saved = localStorage.getItem('mockTasks');
-                tasks = saved ? JSON.parse(saved) : [...MOCK_TASKS];
+                setTasks(saved ? JSON.parse(saved) : [...MOCK_TASKS]);
                 renderTasks();
                 return;
             }
@@ -364,7 +367,7 @@
             try {
                 const response = await fetch(`${API_BASE}/${LIST_NAME}`);
                 if (!response.ok) throw new Error('Failed to fetch tasks');
-                tasks = await response.json();
+                setTasks(await response.json());
                 renderTasks();
             } catch (error) {
                 taskListEl.innerHTML = `<li class="error">Error loading tasks: ${error.message}</li>`;
@@ -374,7 +377,7 @@
         // Save tasks to API (or mock)
         async function saveTasks() {
             if (IS_MOCK) {
-                localStorage.setItem('mockTasks', JSON.stringify(tasks));
+                localStorage.setItem('mockTasks', JSON.stringify(getTasks()));
                 // Brief visual feedback
                 savingIndicator.classList.add('visible');
                 setTimeout(() => savingIndicator.classList.remove('visible'), 300);
@@ -389,7 +392,7 @@
                 const response = await fetch(`${API_BASE}/${LIST_NAME}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(tasks)
+                    body: JSON.stringify(getTasks())
                 });
                 if (!response.ok) throw new Error('Failed to save');
             } catch (error) {
@@ -402,6 +405,7 @@
 
         // Render tasks grouped by tags
         function renderTasks() {
+            const tasks = getTasks();
             if (tasks.length === 0) {
                 taskListEl.innerHTML = '<div class="loading">No tasks found</div>';
                 return;
@@ -489,9 +493,9 @@
             // Handle tag click (remove tag)
             if (e.target.classList.contains('task-tag')) {
                 e.stopPropagation();
-                const index = parseInt(e.target.dataset.index, 10);
+                const taskId = parseInt(e.target.dataset.index, 10);
                 const tag = e.target.dataset.tag;
-                tasks[index].tags = tasks[index].tags.filter(t => t !== tag);
+                removeTagFromTask(taskId, tag);
                 renderTasks();
                 saveTasks();
                 return;
@@ -500,12 +504,8 @@
             const taskEl = e.target.closest('.task');
             if (!taskEl) return;
 
-            const index = parseInt(taskEl.dataset.index, 10);
-            const currentStatus = tasks[index].status;
-            const currentIndex = statusCycle.indexOf(currentStatus);
-            const nextIndex = (currentIndex + 1) % statusCycle.length;
-            
-            tasks[index].status = statusCycle[nextIndex];
+            const taskId = parseInt(taskEl.dataset.index, 10);
+            cycleTaskStatus(taskId);
             renderTasks();
             saveTasks();
         });
@@ -516,7 +516,7 @@
             const name = taskInput.value.trim();
             if (!name) return;
 
-            tasks.push({ name, status: 'not-started', tags: [] });
+            addTask(name);
             taskInput.value = '';
             renderTasks();
             saveTasks();
@@ -538,11 +538,7 @@
             const tag = tagInput.value.trim().toLowerCase();
             if (!tag || editingTagIndex === null) return;
             
-            if (!tasks[editingTagIndex].tags) {
-                tasks[editingTagIndex].tags = [];
-            }
-            if (!tasks[editingTagIndex].tags.includes(tag)) {
-                tasks[editingTagIndex].tags.push(tag);
+            if (addTagToTask(editingTagIndex, tag)) {
                 renderTasks();
                 saveTasks();
             }
