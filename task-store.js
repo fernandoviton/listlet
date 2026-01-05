@@ -1,21 +1,13 @@
 // ===========================================
-// Task State & Mutation Methods
+// Task Store (State Container)
 // ===========================================
-// All access and changes to tasks should go through these methods.
-// This gives us a centralized list of mutations, which will be
-// useful for conflict detection in the sync helper.
-//
-// Task ID: Currently using array index as ID. This is acceptable
-// because there is no way to delete or reorder tasks yet. When
-// those features are added, we should switch to unique IDs.
+// Holds the tasks array and provides access to it.
+// Uses TaskMutations for all mutation operations.
 // ===========================================
 
 const TaskStore = (function() {
     // Private state
     let tasks = [];
-    
-    // Status cycle order
-    const statusCycle = ['not-started', 'in-progress', 'needs-review', 'done', 'removed'];
 
     // ===========================================
     // Accessors
@@ -47,78 +39,28 @@ const TaskStore = (function() {
         tasks = newTasks;
     }
 
-    /**
-     * Get the status cycle array
-     * @returns {string[]} - Array of status values in cycle order
-     */
-    function getStatusCycle() {
-        return statusCycle;
-    }
-
     // ===========================================
-    // Mutations
+    // Mutations (delegate to TaskMutations)
     // ===========================================
 
-    /**
-     * Add a new task
-     * @param {string} name - Task name
-     * @returns {number} - The index of the new task
-     */
     function addTask(name) {
-        const newTask = { name, status: 'not-started', tags: [] };
-        tasks.push(newTask);
-        return tasks.length - 1;
+        return TaskMutations.addTask(tasks, name);
     }
 
-    /**
-     * Update a task's status
-     * @param {number} taskId - Task index
-     * @param {string} newStatus - New status value
-     */
     function updateTaskStatus(taskId, newStatus) {
-        if (taskId < 0 || taskId >= tasks.length) return;
-        tasks[taskId].status = newStatus;
+        return TaskMutations.updateTaskStatus(tasks, taskId, newStatus);
     }
 
-    /**
-     * Add a tag to a task
-     * @param {number} taskId - Task index
-     * @param {string} tag - Tag to add
-     * @returns {boolean} - True if tag was added, false if already exists
-     */
     function addTagToTask(taskId, tag) {
-        if (taskId < 0 || taskId >= tasks.length) return false;
-        if (!tasks[taskId].tags) {
-            tasks[taskId].tags = [];
-        }
-        if (tasks[taskId].tags.includes(tag)) {
-            return false;
-        }
-        tasks[taskId].tags.push(tag);
-        return true;
+        return TaskMutations.addTagToTask(tasks, taskId, tag);
     }
 
-    /**
-     * Remove a tag from a task
-     * @param {number} taskId - Task index
-     * @param {string} tag - Tag to remove
-     */
     function removeTagFromTask(taskId, tag) {
-        if (taskId < 0 || taskId >= tasks.length) return;
-        if (!tasks[taskId].tags) return;
-        tasks[taskId].tags = tasks[taskId].tags.filter(t => t !== tag);
+        return TaskMutations.removeTagFromTask(tasks, taskId, tag);
     }
 
-    /**
-     * Cycle a task's status to the next value
-     * @param {number} taskId - Task index
-     */
     function cycleTaskStatus(taskId) {
-        if (taskId < 0 || taskId >= tasks.length) return;
-        const currentStatus = tasks[taskId].status;
-        const currentIndex = statusCycle.indexOf(currentStatus);
-        const nextIndex = (currentIndex + 1) % statusCycle.length;
-        tasks[taskId].status = statusCycle[nextIndex];
+        return TaskMutations.cycleTaskStatus(tasks, taskId);
     }
 
     // Public API
@@ -127,7 +69,7 @@ const TaskStore = (function() {
         getTasks,
         getTask,
         setTasks,
-        getStatusCycle,
+        getStatusCycle: TaskMutations.getStatusCycle,
         // Mutations
         addTask,
         updateTaskStatus,
@@ -136,4 +78,3 @@ const TaskStore = (function() {
         cycleTaskStatus
     };
 })();
-
