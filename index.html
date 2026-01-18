@@ -320,7 +320,8 @@
          */
         function getListName() {
             const params = new URLSearchParams(window.location.search);
-            return params.get('list') || CONFIG.DEFAULT_LIST_NAME;
+            const list = params.get('list');
+            return (list && list.trim()) || CONFIG.DEFAULT_LIST_NAME;
         }
 
         // Use config from config.js
@@ -380,6 +381,18 @@
             
             try {
                 const response = await fetch(`${API_BASE}/${LIST_NAME}`);
+                if (response.status === 404) {
+                    // List doesn't exist - create it
+                    const createResponse = await fetch(`${API_BASE}/${LIST_NAME}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '[]'
+                    });
+                    if (!createResponse.ok) throw new Error('Failed to create list');
+                    setTasks([]);
+                    renderTasks();
+                    return;
+                }
                 if (!response.ok) throw new Error('Failed to fetch tasks');
                 setTasks(await response.json());
                 renderTasks();

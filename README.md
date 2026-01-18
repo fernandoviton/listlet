@@ -172,4 +172,4 @@ All changes auto-save to Azure.
 
 **Recover removed tasks:** Edit the JSON and change `"status": "removed"` back to `"not-started"`
 
-**Create new lists:** Just visit `?list=newname` - the list JSON will be created when you add your first task
+**Create new lists:** Just visit `?list=newname` - an empty list is created automatically

@@ -41,31 +41,23 @@ https://example.com/index.html                  → uses DEFAULT_LIST_NAME from 
 
 ---
 
-## Phase 2: Auto-Create Lists (Next)
+## Phase 2: Auto-Create Lists ✅ COMPLETE (Jan 2026)
 
 ### Current Behavior
 - GET on non-existent list returns 404
 - Must manually upload JSON to blob storage
 
 ### New Behavior
-- GET on non-existent list → creates empty list `[]` and returns it
+- Client detects 404 → PUTs empty list `[]` → uses empty list
 - Enables instant list creation: just visit `?list=anything`
 
-### Changes Required
+### Implementation Summary
+- Client-side approach: `fetchTasks()` handles 404 by creating the list
+- API remains RESTful (GET has no side effects)
+- Client knows when a list is brand new (could show welcome message in future)
 
-#### 1. Update `azure-function/TasksApi/index.js`
-```javascript
-// In GET handler, if 404:
-if (error.statusCode === 404) {
-    // Create empty list
-    const emptyList = '[]';
-    await blobClient.upload(emptyList, emptyList.length, { overwrite: true });
-    context.res = { status: 200, headers, body: emptyList };
-}
-```
-
-### Files to Modify
-- [azure-function/TasksApi/index.js](azure-function/TasksApi/index.js) - Auto-create on 404
+### Files Modified
+- [index.html](index.html) - `fetchTasks()` handles 404 → PUT `[]`
 
 ---
 
