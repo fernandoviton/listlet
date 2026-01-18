@@ -7,12 +7,22 @@ A simple, responsive task list application that displays tasks with multiple sta
 
 ```
 ┌─────────────┐     ┌─────────────────┐     ┌─────────────────────┐
-│  GitHub     │     │  Azure Function │     │  Azure Blob Storage │
-│  Pages      │────▶│  (GET/PUT)      │────▶│  {listName}.json    │
-│  index.html │     │  /tasks/{list}  │     │                     │
+│  Static     │     │  Azure Function │     │  Azure Blob Storage │
+│  Hosting    │────▶│  (GET/PUT)      │────▶│  {listName}.json    │
+│             │     │  /tasks/{list}  │     │                     │
 └─────────────┘     └─────────────────┘     └─────────────────────┘
 
-URL: index.html?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.json
+URL: /tasks/?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.json
+```
+
+## URL Structure
+
+```
+/                           → Redirects to /home/
+/?list=grocery              → Redirects to /tasks/?list=grocery
+/home/                      → Landing page (create new list)
+/tasks/?list=grocery        → Task list for "grocery"
+/tasks/                     → Task list with default list name
 ```
 
 ## Data Format
@@ -32,20 +42,35 @@ URL: index.html?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.j
 ## File Structure
 ```
 checklist-spa/
-├── index.html           # Main app (HTML + CSS + JS)
-├── config.js            # API URL and default list name
-├── config.example.js    # Template for config.js
-├── task-store.js        # State management
-├── task-mutations.js    # Pure mutation functions
-├── PLAN.md              # Multi-list implementation roadmap
-├── README.md            # This file
-└── azure-function/
-    ├── host.json            # Function app config
-    ├── package.json         # Dependencies
-    ├── local.settings.json  # Local dev settings (not deployed)
+├── index.html              # Router (redirects to /home/ or /tasks/)
+├── config.js               # API URL and default list name
+├── config.example.js       # Template for config.js
+│
+├── shared/                 # Shared utilities
+│   ├── api.js              # Fetch/save logic, list creation
+│   ├── utils.js            # escapeHtml, generateId, getListName
+│   └── common.css          # Base styles (buttons, modals, etc.)
+│
+├── home/                   # Landing page feature
+│   └── index.html          # Create new list, go to existing list
+│
+├── tasks/                  # Task list feature
+│   ├── index.html          # Task list page
+│   ├── tasks.js            # Task-specific UI logic
+│   ├── tasks.css           # Task-specific styles
+│   ├── task-store.js       # State management
+│   └── task-mutations.js   # Pure mutation functions
+│
+├── PLAN.md                 # Implementation roadmap
+├── README.md               # This file
+│
+└── azure-function/         # Backend API
+    ├── host.json
+    ├── package.json
+    ├── local.settings.json
     └── TasksApi/
-        ├── function.json    # Function binding config
-        └── index.js         # Function code (GET & PUT)
+        ├── function.json
+        └── index.js
 ```
 
 ## Azure Deployment Instructions
@@ -130,7 +155,11 @@ checklist-spa/
 
 ### 10. Upload SPA Files
 1. Go to Storage Account → **Containers** → **$web**
-2. Upload `index.html` and `config.js` (with your actual API URL)
+2. Upload all files and folders:
+   - `index.html`, `config.js`
+   - `shared/` folder (with api.js, utils.js, common.css)
+   - `home/` folder (with index.html)
+   - `tasks/` folder (with all files)
 3. Your SPA is now live at the Primary endpoint URL
 
 ### 11. Update Frontend Config
@@ -145,8 +174,9 @@ const CONFIG = {
 ## Using the App
 
 ### Accessing Lists
-- **Default list:** `https://yoursite.com/index.html` → uses `DEFAULT_LIST_NAME`
-- **Specific list:** `https://yoursite.com/index.html?list=grocery` → loads `grocery.json`
+- **Home page:** `https://yoursite.com/` → create new list or enter existing name
+- **Default list:** `https://yoursite.com/tasks/` → uses `DEFAULT_LIST_NAME`
+- **Specific list:** `https://yoursite.com/tasks/?list=grocery` → loads `grocery.json`
 - **Any name works:** `?list=work`, `?list=shopping`, `?list=my-project`
 
 ### Task Actions

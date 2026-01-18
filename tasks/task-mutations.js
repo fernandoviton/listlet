@@ -98,28 +98,6 @@ const TaskMutations = (function() {
         return true;
     }
 
-    /**
-     * Apply a mutation object to a tasks array
-     * @param {Array} tasks - The tasks array to mutate
-     * @param {Object} mutation - {fn: string, args: array}
-     * @returns {*} - The result of the mutation function
-     */
-    function applyMutation(tasks, mutation) {
-        if (!mutation || !mutation.fn) return false;
-        const fn = mutations[mutation.fn];
-        if (!fn) return false;
-        return fn(tasks, ...mutation.args);
-    }
-
-    // Store references for applyMutation lookup
-    const mutations = {
-        addTask,
-        updateTaskStatus,
-        addTagToTask,
-        removeTagFromTask,
-        cycleTaskStatus
-    };
-
     // Public API
     return {
         getStatusCycle,
@@ -127,7 +105,6 @@ const TaskMutations = (function() {
         updateTaskStatus,
         addTagToTask,
         removeTagFromTask,
-        cycleTaskStatus,
-        applyMutation
+        cycleTaskStatus
     };
 })();

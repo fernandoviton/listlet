@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task List</title>
+    <link rel="stylesheet" href="../shared/common.css">
+    <link rel="stylesheet" href="tasks.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Tasks <span id="listNameDisplay" style="font-weight: normal; color: #666; font-size: 0.8em;"></span></h1>
+        <form class="add-task-form" id="addTaskForm">
+            <input type="text" class="add-task-input" id="taskInput" placeholder="Add a new task..." required>
+            <button type="submit" class="add-task-btn">Add</button>
+        </form>
+        <div id="taskList">
+            <div class="loading">Loading tasks...</div>
+        </div>
+    </div>
+    
+    <div class="saving-indicator" id="savingIndicator">Saving...</div>
+    
+    <!-- Tag input modal -->
+    <div class="modal-overlay" id="tagModal">
+        <div class="modal">
+            <h3>Add Tag</h3>
+            <input type="text" id="tagInput" placeholder="Enter tag name...">
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelTagBtn">Cancel</button>
+                <button class="modal-btn primary" id="saveTagBtn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../config.js"></script>
+    <script src="../shared/utils.js"></script>
+    <script src="../shared/api.js"></script>
+    <script src="task-mutations.js"></script>
+    <script src="task-store.js"></script>
+    <script src="tasks.js"></script>
+    <script>
+        // Initialize with list name from URL
+        TasksUI.init(getListName());
+    </script>
+</body>
+</html>
