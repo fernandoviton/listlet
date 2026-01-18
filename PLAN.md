@@ -2,73 +2,46 @@
 
 ## Current State
 
-- **API**: Already supports multiple lists via route `/api/tasks/{listName}` → loads `{listName}.json` from blob storage
-- **Frontend**: Hardcoded to single list via `CONFIG.LIST_NAME` in `config.js`
-- **Storage**: Single `tasks.json` in blob container
+- **API**: Supports multiple lists via route `/api/tasks/{listName}` → loads `{listName}.json` from blob storage
+- **Frontend**: Reads list name from `?list=` URL param, falls back to `CONFIG.DEFAULT_LIST_NAME`
+- **Storage**: Multiple `{listName}.json` files in blob container
 
 ## Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | URL format | `?list=xyz` query param | Simple, works with static hosting, extensible |
-| No `?list=` param | Redirect to home page | Clean UX, home page will be the entry point |
-| List creation | Auto-create on first access | No manual blob uploads needed |
+| No `?list=` param | Use default list from config | Backward compatible, easy testing |
+| List creation | Auto-create on first access | No manual blob uploads needed (Phase 2) |
 | List IDs | Any string via `?list=` | Home page generates random IDs, users can also use friendly names |
 | Auth | Future phase | Currently public by URL (security through obscurity for random IDs) |
 
 ---
 
-## Phase 1: URL Parameter Support (Now)
+## Phase 1: URL Parameter Support ✅ COMPLETE (Jan 2026)
 
 ### URL Format
 ```
-https://example.com/index.html?list=grocery     → loads/creates "grocery" list
-https://example.com/index.html?list=x7k2m9p3    → loads/creates random ID list
-https://example.com/index.html                  → redirects to home.html (future)
-https://example.com/home.html                   → home page (future)
+https://example.com/index.html?list=grocery     → loads "grocery" list
+https://example.com/index.html?list=x7k2m9p3    → loads random ID list
+https://example.com/index.html                  → uses DEFAULT_LIST_NAME from config
 ```
 
-### Changes Required
+### Implementation Summary
 
-#### 1. Update `index.html` - Add URL Parameter Parsing
-```javascript
-// Get list name from URL, redirect to home if missing
-function getListName() {
-    const params = new URLSearchParams(window.location.search);
-    const list = params.get('list');
-    if (!list) {
-        // Future: redirect to home.html
-        // For now: show error or use a fallback
-        return null;
-    }
-    return list;
-}
-```
+- `getListName()` function parses `?list=` param, falls back to `CONFIG.DEFAULT_LIST_NAME`
+- Page title updates to `{listName} - Task List`
+- Header displays list name in parentheses
+- Config changed: `LIST_NAME` → `DEFAULT_LIST_NAME`
 
-#### 2. Update `index.html` - Use Dynamic List Name in API Calls
-- `API_BASE`: Base URL (e.g., `https://xxx.azurewebsites.net/api/tasks`)
-- Append `/{listName}` dynamically when making requests
-
-#### 3. Update `index.html` - Show Current List Name
-- Display the list name in the header
-- Update page title to include list name
-
-#### 4. Update `config.js` Structure
-```javascript
-const CONFIG = {
-    API_BASE: 'https://<func-app>.azurewebsites.net/api/tasks'
-    // No default list - require ?list= param
-};
-```
-
-### Files to Modify
-- [index.html](index.html) - URL parsing, dynamic API calls, display list name
-- [config.js](config.js) - Simplify config
-- [config.example.js](config.example.js) - Update example
+### Files Modified
+- [index.html](index.html) - URL parsing via `getListName()`, dynamic title/header
+- [config.js](config.js) - Changed `LIST_NAME` to `DEFAULT_LIST_NAME`
+- [config.example.js](config.example.js) - Same
 
 ---
 
-## Phase 2: Auto-Create Lists (Now)
+## Phase 2: Auto-Create Lists (Next)
 
 ### Current Behavior
 - GET on non-existent list returns 404

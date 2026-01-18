@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task List</title>
+    <title>Task List</title><!-- Updated dynamically by JS -->
     <style>
         * {
             box-sizing: border-box;
@@ -282,7 +282,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Tasks</h1>
+        <h1>Tasks <span id="listNameDisplay" style="font-weight: normal; color: #666; font-size: 0.8em;"></span></h1>
         <form class="add-task-form" id="addTaskForm">
             <input type="text" class="add-task-input" id="taskInput" placeholder="Add a new task..." required>
             <button type="submit" class="add-task-btn">Add</button>
@@ -310,9 +310,22 @@
     <script src="task-mutations.js"></script>
     <script src="task-store.js"></script>
     <script>
+        // ===========================================
+        // URL Parameter Handling
+        // ===========================================
+        
+        /**
+         * Get list name from URL query param, fallback to config default
+         * @returns {string} - The list name to use
+         */
+        function getListName() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('list') || CONFIG.DEFAULT_LIST_NAME;
+        }
+
         // Use config from config.js
         const API_BASE = CONFIG.API_BASE;
-        const LIST_NAME = CONFIG.LIST_NAME;
+        const LIST_NAME = getListName();
         const IS_MOCK = API_BASE === 'mock';
 
         // Mock data for local testing
@@ -575,6 +588,8 @@
         });
 
         // Initialize
+        document.title = `${LIST_NAME} - Task List`;
+        document.getElementById('listNameDisplay').textContent = `(${LIST_NAME})`;
         fetchTasks();
     </script>
 </body>

@@ -1,37 +1,44 @@
-# Task List SPA - Implementation Plan
+# Task List SPA
 
 ## Overview
-A simple, responsive task list application that displays tasks with three possible states. Tasks are persisted via an Azure Function backed by Azure Blob Storage.
+A simple, responsive task list application that displays tasks with multiple states. Supports **multiple lists** via URL parameters (`?list=mylist`). Tasks are persisted via an Azure Function backed by Azure Blob Storage.
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌─────────────────┐     ┌─────────────────────┐
 │  GitHub     │     │  Azure Function │     │  Azure Blob Storage │
-│  Pages      │────▶│  (GET/PUT)      │────▶│  tasks.json         │
-│  index.html │     │                 │     │                     │
+│  Pages      │────▶│  (GET/PUT)      │────▶│  {listName}.json    │
+│  index.html │     │  /tasks/{list}  │     │                     │
 └─────────────┘     └─────────────────┘     └─────────────────────┘
+
+URL: index.html?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.json
 ```
 
 ## Data Format
 
-### `tasks.json` (in Azure Blob Storage)
+### `{listName}.json` (in Azure Blob Storage)
 ```json
 [
-  { "name": "Task name here", "status": "not-started" },
-  { "name": "Another task", "status": "in-progress" },
-  { "name": "Completed task", "status": "done" },
+  { "name": "Task name here", "status": "not-started", "tags": [] },
+  { "name": "Another task", "status": "in-progress", "tags": ["urgent"] },
+  { "name": "Completed task", "status": "done", "tags": ["backend"] },
   { "name": "Deleted task", "status": "removed" }
 ]
 ```
 
-**Status values:** `not-started` | `in-progress` | `done` | `removed`
+**Status values:** `not-started` | `in-progress` | `needs-review` | `done` | `removed`
 
 ## File Structure
 ```
 checklist-spa/
 ├── index.html           # Main app (HTML + CSS + JS)
-├── PLAN.md              # This file
+├── config.js            # API URL and default list name
+├── config.example.js    # Template for config.js
+├── task-store.js        # State management
+├── task-mutations.js    # Pure mutation functions
+├── PLAN.md              # Multi-list implementation roadmap
+├── README.md            # This file
 └── azure-function/
     ├── host.json            # Function app config
     ├── package.json         # Dependencies
@@ -131,30 +138,38 @@ Before uploading, update `config.js` with your function URL:
 ```javascript
 const CONFIG = {
     API_BASE: 'https://<your-function-app>.azurewebsites.net/api/tasks',
-    LIST_NAME: 'tasks'
+    DEFAULT_LIST_NAME: 'tasks'  // Used when no ?list= param
 };
 ```
 
 ## Using the App
 
+### Accessing Lists
+- **Default list:** `https://yoursite.com/index.html` → uses `DEFAULT_LIST_NAME`
+- **Specific list:** `https://yoursite.com/index.html?list=grocery` → loads `grocery.json`
+- **Any name works:** `?list=work`, `?list=shopping`, `?list=my-project`
+
+### Task Actions
+
 **Add a task:** Type in the input field and click "Add" or press Enter
 
-**Cycle task status:** Click a task to cycle through: not-started → in-progress → done → removed
+**Cycle task status:** Click a task to cycle through: not-started → in-progress → needs-review → done → removed
 
 **Status icons:**
 - ○ Not started (gray)
-- ◐ In progress (blue)
+- ◐ In progress (orange)
+- ? Needs review (blue)
 - ✓ Done (green, strikethrough)
-- ✕ Removed (hidden from list)
+- ✕ Removed (red, faded)
 
 All changes auto-save to Azure.
 
 ## Managing Tasks via Azure Portal
 
 1. Storage Account → Containers → tasklists
-2. Click `tasks.json` → **Edit**
+2. Click `{listName}.json` → **Edit**
 3. Modify and save
 
 **Recover removed tasks:** Edit the JSON and change `"status": "removed"` back to `"not-started"`
 
-**Create New Lists:** Upload a new `{name}.json` to blob storage, then change `LIST_NAME` in config.js
+**Create new lists:** Just visit `?list=newname` - the list JSON will be created when you add your first task
