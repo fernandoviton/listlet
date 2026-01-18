@@ -175,12 +175,19 @@ API auto-creates empty list
 
 ## Phase 5: Meal Board Template (Future)
 
+> **📋 Detailed Plan**: [PLAN-MEALBOARD.md](PLAN-MEALBOARD.md)
+
 ### Purpose
-A specialized view for meal planning/tracking (details TBD).
+A specialized view for weekly meal planning with:
+- Week-centric calendar view
+- Quick meal selection from a `meals.json` database
+- Auto-generated prep tasks (when meal metadata specifies)
+- On-demand shopping list generation from aggregated ingredients
 
 ### Files
 - `tasks.html` - Task list UI (current)
 - `meals.html` - Meal board UI (new)
+- `meals.json` - Meal definitions database (new)
 
 ### URL Format
 ```
@@ -189,11 +196,16 @@ index.html?list=xyz&template=meals     → meal board
 meals.html?list=xyz                    → direct link to meal board
 ```
 
+### Key Features
+1. **Meal Assignment**: Pick meals from database, assign to days
+2. **Prep Tasks**: Auto-created when meal has prep metadata
+3. **Shopping List**: Button to generate aggregated shopping list; toggles to View/Remove when list exists
+
 ### Implementation
 - Separate HTML file (`meals.html`)
 - Uses same API and data format as tasks
 - Router handles optional `&template=` param
-- Details TBD
+- See [PLAN-MEALBOARD.md](PLAN-MEALBOARD.md) for full details
 
 ---
 
@@ -288,6 +300,7 @@ Later, can layer on Option C or D for better UX.
 - **Random IDs**: Home page generates sufficiently random IDs (8+ chars, alphanumeric)
 - **Rate limiting**: Consider Azure Function rate limits for abuse prevention
 - **Input validation**: Sanitize list names (alphanumeric, hyphens, max 64 chars)
+- **Reserved character**: `~` is reserved for system-generated sub-lists (e.g., `mylist~shopping`)
 - **Token storage**: Edit tokens should be shown once, stored by user (like API keys)
 
 ---
