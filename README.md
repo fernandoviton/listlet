@@ -42,35 +42,36 @@ URL: /tasks/?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.json
 ## File Structure
 ```
 checklist-spa/
-├── index.html              # Router (redirects to /home/ or /tasks/)
-├── config.js               # API URL and default list name
-├── config.example.js       # Template for config.js
+├── client/                     # Frontend SPA
+│   ├── index.html              # Router (redirects to /home/ or /tasks/)
+│   ├── config.js               # API URL and default list name
+│   ├── config.example.js       # Template for config.js
+│   │
+│   ├── shared/                 # Shared utilities
+│   │   ├── api.js              # Fetch/save logic, list creation
+│   │   ├── utils.js            # escapeHtml, generateId, getListName
+│   │   └── common.css          # Base styles (buttons, modals, etc.)
+│   │
+│   ├── home/                   # Landing page feature
+│   │   └── index.html          # Create new list, go to existing list
+│   │
+│   └── tasks/                  # Task list feature
+│       ├── index.html          # Task list page
+│       ├── tasks.js            # Task-specific UI logic
+│       ├── tasks.css           # Task-specific styles
+│       ├── task-store.js       # State management
+│       └── task-mutations.js   # Pure mutation functions
 │
-├── shared/                 # Shared utilities
-│   ├── api.js              # Fetch/save logic, list creation
-│   ├── utils.js            # escapeHtml, generateId, getListName
-│   └── common.css          # Base styles (buttons, modals, etc.)
+├── azure-function/             # Backend API
+│   ├── host.json
+│   ├── package.json
+│   ├── local.settings.json
+│   └── TasksApi/
+│       ├── function.json
+│       └── index.js
 │
-├── home/                   # Landing page feature
-│   └── index.html          # Create new list, go to existing list
-│
-├── tasks/                  # Task list feature
-│   ├── index.html          # Task list page
-│   ├── tasks.js            # Task-specific UI logic
-│   ├── tasks.css           # Task-specific styles
-│   ├── task-store.js       # State management
-│   └── task-mutations.js   # Pure mutation functions
-│
-├── PLAN.md                 # Implementation roadmap
-├── README.md               # This file
-│
-└── azure-function/         # Backend API
-    ├── host.json
-    ├── package.json
-    ├── local.settings.json
-    └── TasksApi/
-        ├── function.json
-        └── index.js
+├── PLAN.md                     # Implementation roadmap
+└── README.md                   # This file
 ```
 
 ## Azure Deployment Instructions
@@ -155,7 +156,7 @@ checklist-spa/
 
 ### 10. Upload SPA Files
 1. Go to Storage Account → **Containers** → **$web**
-2. Upload all files and folders:
+2. Upload all files and folders from `client/`:
    - `index.html`, `config.js`
    - `shared/` folder (with api.js, utils.js, common.css)
    - `home/` folder (with index.html)
@@ -163,7 +164,7 @@ checklist-spa/
 3. Your SPA is now live at the Primary endpoint URL
 
 ### 11. Update Frontend Config
-Before uploading, update `config.js` with your function URL:
+Before uploading, update `client/config.js` with your function URL:
 ```javascript
 const CONFIG = {
     API_BASE: 'https://<your-function-app>.azurewebsites.net/api/tasks',

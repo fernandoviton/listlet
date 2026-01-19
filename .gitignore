@@ -1,8 +1,9 @@
 # Config file - contains deployment-specific values
-config.js
+client/config.js
+client/config.local.js
 
 # Keep the example in repo
-!config.example.js
+!client/config.example.js
 
 # Tasks file - contains specific tasks
 azure-function/tasks.json

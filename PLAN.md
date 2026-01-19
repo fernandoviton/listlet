@@ -61,115 +61,56 @@ https://example.com/index.html                  → uses DEFAULT_LIST_NAME from 
 
 ---
 
-## Phase 3: Refactor to Router Architecture (Next)
+## Phase 3: Refactor to Router Architecture ✅ COMPLETE (Jan 2026)
 
 ### Purpose
 Separate routing logic from the task list UI to prepare for multiple pages (home, tasks, future templates).
 
-### Current Structure
-```
-index.html  → Everything (routing + task list UI)
-```
-
 ### New Structure
 ```
-index.html  → Lightweight router only
-tasks.html  → Task list SPA (moved from index.html)
-home.html   → Future: landing page
+client/
+├── index.html              # Router (redirects to /home/ or /tasks/)
+├── config.js               # API URL and default list name
+├── shared/                 # Shared utilities
+│   ├── api.js              # Fetch/save logic
+│   ├── utils.js            # escapeHtml, generateListId, getListName
+│   └── common.css          # Base styles
+├── home/                   # Landing page
+│   └── index.html          # Create new list, go to existing
+└── tasks/                  # Task list feature
+    ├── index.html          # Task list page
+    ├── tasks.js            # UI logic
+    ├── tasks.css           # Task-specific styles
+    ├── task-store.js       # State management
+    └── task-mutations.js   # Pure mutation functions
 ```
-
-### Router Logic (`index.html`)
-```javascript
-// index.html - Router
-(function() {
-    const params = new URLSearchParams(window.location.search);
-    const list = params.get('list');
-    
-    if (list) {
-        // Has list param → go to task list
-        window.location.replace(`tasks.html?list=${encodeURIComponent(list)}`);
-    } else {
-        // No list param → go to home page
-        window.location.replace('home.html');
-    }
-})();
-```
-
-### URL Flow After Refactor
-```
-User visits index.html?list=xyz
-    ↓
-Router redirects to tasks.html?list=xyz
-    ↓
-Task list loads
-
-User visits index.html (no param)
-    ↓
-Router redirects to home.html
-    ↓
-Home page loads (or "coming soon" placeholder)
-```
-
-### Changes Required
-
-#### 1. Create `tasks.html`
-- Copy all content from current `index.html`
-- Keep the `?list=` parameter handling
-- This becomes the task list SPA
-
-#### 2. Replace `index.html` with Router
-- Minimal HTML, just the routing JavaScript
-- No UI, immediate redirect
-
-#### 3. Create `home.html` Placeholder
-- Simple "Coming Soon" or "Create List" stub
-- Will be expanded in Phase 4
-
-### Files to Create
-- `tasks.html` - Task list SPA (moved from index.html)
-- `home.html` - Placeholder for home page
-
-### Files to Modify
-- `index.html` - Replace with router logic
-
-### Benefits
-- Clean separation of concerns
-- Easy to add new pages/templates
-- Direct links to `tasks.html?list=xyz` still work
-- `index.html` becomes the "smart entry point"
-
----
-
-## Phase 4: Home Page (Future)
-
-### Purpose
-Entry point for creating new lists and accessing recent ones.
-
-### Features
-- **Create New List** button → generates random ID (e.g., `x7k2m9p3`), redirects to `?list={id}`
-- **Recent Lists** → stored in localStorage, displayed as quick links
-- **Optional**: Enter custom list name
 
 ### URL Flow
 ```
-User visits index.html (no ?list=)
-    ↓
-Redirect to home.html
-    ↓
-User clicks "Create New List"
-    ↓
-Generate random ID: "x7k2m9p3"
-    ↓
-Redirect to index.html?list=x7k2m9p3
-    ↓
-API auto-creates empty list
+/                    → redirects to /home/
+/?list=xyz           → redirects to /tasks/?list=xyz
+/home/               → landing page (create new list)
+/tasks/?list=xyz     → task list
 ```
 
-### Files to Create
-- `home.html` - New home page
+### Implementation Summary
+- Feature-based folder organization (tasks/, home/, shared/)
+- Router in root index.html handles redirects
+- Home page has "Create New List" button (generates random ID)
+- Shared utilities extracted (api.js, utils.js, common.css)
+- Client files moved to `client/` folder (parallel to `azure-function/`)
 
-### Files to Modify  
-- `index.html` - Add redirect when no `?list=` param
+---
+
+## Phase 4: Home Page Enhancements (Future)
+
+### Current State (from Phase 3)
+- ✅ "Create New List" button → generates random ID, redirects to `/tasks/?list={id}`
+- ✅ "Go to existing list" form → enter list name, go to it
+
+### Future Enhancements
+- **Recent Lists** → stored in localStorage, displayed as quick links
+- **List management** → rename, delete, share options
 
 ---
 
@@ -273,24 +214,16 @@ Later, can layer on Option C or D for better UX.
 
 ## Implementation Order
 
-### Now (Phases 1-2)
-1. Update frontend to read `?list=` parameter
-2. Update API calls to use dynamic list name  
-3. Display list name in UI
-4. Add auto-create in Azure Function
-5. Handle missing `?list=` (temporary: show message)
-6. Test & Deploy
+### Completed
+- ✅ Phase 1: URL parameter support
+- ✅ Phase 2: Auto-create lists on 404
+- ✅ Phase 3: Router architecture + home page + folder reorganization
 
-### Next (Phase 3)
-7. Create `tasks.html` from current `index.html`
-8. Replace `index.html` with router
-9. Create `home.html` placeholder
-10. Test & Deploy
+### Next (Phase 5)
+- Build meal board template (see PLAN-MEALBOARD.md)
 
-### Later (Phases 4-6)
-11. Build out home page (create list, recent lists)
-12. Build meal board template
-13. Implement basic auth (tokens)
+### Later (Phase 6)
+- Implement basic auth (tokens)
 
 ---
 
@@ -307,26 +240,24 @@ Later, can layer on Option C or D for better UX.
 
 ## Testing Checklist
 
-### Phase 1-2
-- [ ] `index.html` (no param) → shows "no list specified" message
-- [ ] `index.html?list=grocery` → loads/creates "grocery" list
-- [ ] `index.html?list=x7k2m9p3` → loads/creates random ID list
-- [ ] Adding tasks saves to correct list
-- [ ] Different browser tabs can have different lists open
-- [ ] Page title shows list name
-- [ ] List name displayed in header
+### Phase 1-2 ✅
+- [x] `/?list=grocery` → loads/creates "grocery" list
+- [x] `/?list=x7k2m9p3` → loads/creates random ID list
+- [x] Adding tasks saves to correct list
+- [x] Different browser tabs can have different lists open
+- [x] Page title shows list name
+- [x] List name displayed in header
 
-### Phase 3
-- [ ] `index.html` (no param) → redirects to `home.html`
-- [ ] `index.html?list=xyz` → redirects to `tasks.html?list=xyz`
-- [ ] `tasks.html?list=xyz` → loads task list correctly
-- [ ] Direct links to `tasks.html?list=xyz` work
-- [ ] `home.html` shows placeholder message
+### Phase 3 ✅
+- [x] `/` (no param) → redirects to `/home/`
+- [x] `/?list=xyz` → redirects to `/tasks/?list=xyz`
+- [x] `/tasks/?list=xyz` → loads task list correctly
+- [x] `/home/` → shows create button and direct access form
+- [x] Create button → generates random ID, redirects correctly
 
-### Phase 4
-- [ ] `home.html` → shows create button and recent lists
-- [ ] Create button → generates random ID, redirects correctly
+### Phase 4 (Future)
 - [ ] Recent lists stored in localStorage
+- [ ] Recent lists displayed on home page
 
 ### Phase 5
 - [ ] `meals.html?list=xyz` → loads meal board view
