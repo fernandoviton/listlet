@@ -25,14 +25,16 @@ const TasksUI = (function() {
     let api = null;
     let isSaving = false;
     let editingTagIndex = null;
+    let renamingTag = null;  // Tag being renamed (null = add mode)
     let knownTags = new Set();
 
     // DOM elements (set during init)
     let taskListEl, savingIndicator, addTaskForm, taskInput;
-    let tagModal, tagInput, tagSuggestions, saveTagBtn, cancelTagBtn;
+    let tagModal, tagModalTitle, tagInput, tagSuggestions, saveTagBtn, cancelTagBtn;
 
     /**
      * Load known tags from localStorage
+     * These are stored here so tags that are removed from all tasks can still be suggested (for this page)
      */
     function loadKnownTags() {
         const stored = localStorage.getItem(`knownTags_${api.listName}`);
@@ -50,6 +52,18 @@ const TasksUI = (function() {
      */
     function saveKnownTags() {
         localStorage.setItem(`knownTags_${api.listName}`, JSON.stringify([...knownTags]));
+    }
+
+    /**
+     * Collect tags from tasks and add to knownTags
+     */
+    function collectKnownTags(tasks) {
+        tasks.forEach(task => {
+            if (task.tags) {
+                task.tags.forEach(tag => knownTags.add(tag));
+            }
+        });
+        saveKnownTags();
     }
 
     /**
@@ -76,6 +90,7 @@ const TasksUI = (function() {
         addTaskForm = document.getElementById('addTaskForm');
         taskInput = document.getElementById('taskInput');
         tagModal = document.getElementById('tagModal');
+        tagModalTitle = document.getElementById('tagModalTitle');
         tagInput = document.getElementById('tagInput');
         tagSuggestions = document.getElementById('tagSuggestions');
         saveTagBtn = document.getElementById('saveTagBtn');
@@ -119,14 +134,6 @@ const TasksUI = (function() {
                 closeTagModal();
             }
         });
-        // Auto-submit when selecting from datalist
-        tagInput.addEventListener('input', (e) => {
-            // Check if the current value matches a known tag (user selected from list)
-            if (knownTags.has(tagInput.value.trim().toLowerCase())) {
-                // Small delay to ensure the input is fully updated
-                setTimeout(() => saveTagBtn.click(), 0);
-            }
-        });
     }
 
     /**
@@ -136,6 +143,7 @@ const TasksUI = (function() {
         try {
             const tasks = await api.fetchTasks([...MOCK_TASKS]);
             TaskStore.setTasks(tasks);
+            collectKnownTags(tasks);
             renderTasks();
         } catch (error) {
             taskListEl.innerHTML = `<div class="error">Error loading tasks: ${escapeHtml(error.message)}</div>`;
@@ -154,16 +162,22 @@ const TasksUI = (function() {
             return;
         }
 
-        if (isSaving) return;
+        if (isSaving) {
+            console.warn('Save skipped - already saving');
+            return;
+        }
         isSaving = true;
         savingIndicator.classList.add('visible');
 
         try {
+            console.log('Saving tasks...');
             const updatedTasks = await api.saveTasks(mutate);
+            console.log('Save complete, tasks:', updatedTasks);
             TaskStore.setTasks(updatedTasks);
             renderTasks();
         } catch (error) {
             console.error('Save error:', error);
+            alert('Failed to save: ' + error.message);
         } finally {
             isSaving = false;
             savingIndicator.classList.remove('visible');
@@ -239,11 +253,15 @@ const TasksUI = (function() {
             </li>
         `).join('');
 
+        const isUntagged = tagName === 'Untagged';
+        const editBtn = isUntagged ? '' : `<button class="edit-tag-btn" data-tag="${escapeHtml(tagName)}" title="Rename tag">✎</button>`;
+
         return `
             <div class="tag-group">
                 <div class="tag-group-header">
                     <span class="tag-group-name">${escapeHtml(tagName)}</span>
                     <span class="tag-group-count">(${groupTasks.length})</span>
+                    ${editBtn}
                 </div>
                 <ul class="task-list">${tasksHtml}</ul>
             </div>
@@ -254,10 +272,28 @@ const TasksUI = (function() {
      * Handle clicks on task list (event delegation)
      */
     function handleTaskListClick(e) {
+        // Handle edit tag button (rename)
+        if (e.target.classList.contains('edit-tag-btn')) {
+            e.stopPropagation();
+            renamingTag = e.target.dataset.tag;
+            editingTagIndex = null;
+            tagModalTitle.textContent = 'Rename Tag';
+            saveTagBtn.textContent = 'Rename';
+            tagInput.value = renamingTag;
+            updateTagSuggestions();
+            tagModal.classList.add('visible');
+            tagInput.focus();
+            tagInput.select();
+            return;
+        }
+
         // Handle add tag button
         if (e.target.classList.contains('add-tag-btn')) {
             e.stopPropagation();
+            renamingTag = null;
             editingTagIndex = parseInt(e.target.dataset.index, 10);
+            tagModalTitle.textContent = 'Add Tag';
+            saveTagBtn.textContent = 'Add';
             tagInput.value = '';
             updateTagSuggestions();
             tagModal.classList.add('visible');
@@ -306,22 +342,49 @@ const TasksUI = (function() {
     function closeTagModal() {
         tagModal.classList.remove('visible');
         editingTagIndex = null;
+        renamingTag = null;
     }
 
     /**
      * Handle save tag button click
      */
     function handleSaveTag() {
-        const tag = tagInput.value.trim().toLowerCase();
-        if (!tag || editingTagIndex === null) return;
+        const newTag = tagInput.value.trim().toLowerCase();
+        if (!newTag) return;
+
+        // Rename mode
+        if (renamingTag !== null) {
+            const oldTag = renamingTag.toLowerCase();
+            if (newTag === oldTag) {
+                closeTagModal();
+                return;
+            }
+            // Update knownTags
+            knownTags.delete(oldTag);
+            knownTags.add(newTag);
+            saveKnownTags();
+
+            // Rename in store and save
+            TaskStore.renameTag(oldTag, newTag);
+            renderTasks();
+            saveTasks((tasks) => TaskMutations.renameTag(tasks, oldTag, newTag));
+            closeTagModal();
+            return;
+        }
+
+        // Add mode
+        if (editingTagIndex === null) return;
+
+        // Capture index before closing modal (closeTagModal sets it to null)
+        const taskIndex = editingTagIndex;
 
         // Remember this tag for future suggestions
-        knownTags.add(tag);
+        knownTags.add(newTag);
         saveKnownTags();
 
-        if (TaskStore.addTagToTask(editingTagIndex, tag)) {
+        if (TaskStore.addTagToTask(taskIndex, newTag)) {
             renderTasks();
-            saveTasks((tasks) => TaskMutations.addTagToTask(tasks, editingTagIndex, tag));
+            saveTasks((tasks) => TaskMutations.addTagToTask(tasks, taskIndex, newTag));
         }
         closeTagModal();
     }

@@ -98,6 +98,33 @@ const TaskMutations = (function() {
         return true;
     }
 
+    /**
+     * Rename a tag across all tasks
+     * @param {Array} tasks - The tasks array to mutate
+     * @param {string} oldTag - Tag to rename
+     * @param {string} newTag - New tag name
+     * @returns {number} - Number of tasks updated
+     */
+    function renameTag(tasks, oldTag, newTag) {
+        let count = 0;
+        tasks.forEach(task => {
+            if (!task.tags) return;
+            const idx = task.tags.indexOf(oldTag);
+            if (idx === -1) return;
+            
+            // Check if task already has the new tag
+            if (task.tags.includes(newTag)) {
+                // Remove the old tag (would be duplicate)
+                task.tags.splice(idx, 1);
+            } else {
+                // Replace old with new
+                task.tags[idx] = newTag;
+            }
+            count++;
+        });
+        return count;
+    }
+
     // Public API
     return {
         getStatusCycle,
@@ -105,6 +132,7 @@ const TaskMutations = (function() {
         updateTaskStatus,
         addTagToTask,
         removeTagFromTask,
-        cycleTaskStatus
+        cycleTaskStatus,
+        renameTag
     };
 })();

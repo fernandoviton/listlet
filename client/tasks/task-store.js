@@ -63,6 +63,10 @@ const TaskStore = (function() {
         return TaskMutations.cycleTaskStatus(tasks, taskId);
     }
 
+    function renameTag(oldTag, newTag) {
+        return TaskMutations.renameTag(tasks, oldTag, newTag);
+    }
+
     // Public API
     return {
         // Accessors
@@ -75,6 +79,7 @@ const TaskStore = (function() {
         updateTaskStatus,
         addTagToTask,
         removeTagFromTask,
-        cycleTaskStatus
+        cycleTaskStatus,
+        renameTag
     };
 })();

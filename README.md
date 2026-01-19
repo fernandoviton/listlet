@@ -186,6 +186,12 @@ const CONFIG = {
 
 **Cycle task status:** Click a task to cycle through: not-started → in-progress → needs-review → done → removed
 
+**Add a tag:** Click the + button next to a task, type a tag name. Previously used tags appear as suggestions.
+
+**Remove a tag:** Click on a tag to remove it from that task.
+
+**Rename a tag:** Click the ✎ button on a tag group header to rename the tag across all tasks.
+
 **Status icons:**
 - ○ Not started (gray)
 - ◐ In progress (orange)
