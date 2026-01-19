@@ -25,7 +25,8 @@
     <div class="modal-overlay" id="tagModal">
         <div class="modal">
             <h3>Add Tag</h3>
-            <input type="text" id="tagInput" placeholder="Enter tag name...">
+            <input type="text" id="tagInput" placeholder="Enter tag name..." list="tagSuggestions" autocomplete="off">
+            <datalist id="tagSuggestions"></datalist>
             <div class="modal-buttons">
                 <button class="modal-btn secondary" id="cancelTagBtn">Cancel</button>
                 <button class="modal-btn primary" id="saveTagBtn">Add</button>

@@ -25,10 +25,42 @@ const TasksUI = (function() {
     let api = null;
     let isSaving = false;
     let editingTagIndex = null;
+    let knownTags = new Set();
 
     // DOM elements (set during init)
     let taskListEl, savingIndicator, addTaskForm, taskInput;
-    let tagModal, tagInput, saveTagBtn, cancelTagBtn;
+    let tagModal, tagInput, tagSuggestions, saveTagBtn, cancelTagBtn;
+
+    /**
+     * Load known tags from localStorage
+     */
+    function loadKnownTags() {
+        const stored = localStorage.getItem(`knownTags_${api.listName}`);
+        if (stored) {
+            try {
+                knownTags = new Set(JSON.parse(stored));
+            } catch (e) {
+                knownTags = new Set();
+            }
+        }
+    }
+
+    /**
+     * Save known tags to localStorage
+     */
+    function saveKnownTags() {
+        localStorage.setItem(`knownTags_${api.listName}`, JSON.stringify([...knownTags]));
+    }
+
+    /**
+     * Update the datalist with current known tags
+     */
+    function updateTagSuggestions() {
+        const sortedTags = [...knownTags].sort();
+        tagSuggestions.innerHTML = sortedTags
+            .map(tag => `<option value="${escapeHtml(tag)}">`)
+            .join('');
+    }
 
     /**
      * Initialize the tasks UI
@@ -45,8 +77,12 @@ const TasksUI = (function() {
         taskInput = document.getElementById('taskInput');
         tagModal = document.getElementById('tagModal');
         tagInput = document.getElementById('tagInput');
+        tagSuggestions = document.getElementById('tagSuggestions');
         saveTagBtn = document.getElementById('saveTagBtn');
         cancelTagBtn = document.getElementById('cancelTagBtn');
+
+        // Load known tags from localStorage
+        loadKnownTags();
 
         // Set up page title
         document.title = `${listName} - Task List`;
@@ -81,6 +117,14 @@ const TasksUI = (function() {
                 saveTagBtn.click();
             } else if (e.key === 'Escape') {
                 closeTagModal();
+            }
+        });
+        // Auto-submit when selecting from datalist
+        tagInput.addEventListener('input', (e) => {
+            // Check if the current value matches a known tag (user selected from list)
+            if (knownTags.has(tagInput.value.trim().toLowerCase())) {
+                // Small delay to ensure the input is fully updated
+                setTimeout(() => saveTagBtn.click(), 0);
             }
         });
     }
@@ -215,6 +259,7 @@ const TasksUI = (function() {
             e.stopPropagation();
             editingTagIndex = parseInt(e.target.dataset.index, 10);
             tagInput.value = '';
+            updateTagSuggestions();
             tagModal.classList.add('visible');
             tagInput.focus();
             return;
@@ -269,6 +314,10 @@ const TasksUI = (function() {
     function handleSaveTag() {
         const tag = tagInput.value.trim().toLowerCase();
         if (!tag || editingTagIndex === null) return;
+
+        // Remember this tag for future suggestions
+        knownTags.add(tag);
+        saveKnownTags();
 
         if (TaskStore.addTagToTask(editingTagIndex, tag)) {
             renderTasks();
