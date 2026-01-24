@@ -213,16 +213,14 @@ This repo includes a GitHub Actions workflow for deploying to Azure Static Web A
 5. Complete the wizard and create the resource
 
 ### 2. Add Deployment Token to GitHub
-1. Get the deployment token using Azure CLI:
-   ```bash
-   az staticwebapp secrets list --name <your-app-name> --resource-group <your-resource-group>
-   ```
-2. Copy the `apiKey` value from the output
-3. In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions**
-4. Click **New repository secret**
+1. In Azure Portal, open your Static Web App → **Overview**
+2. Click **Manage deployment token** (button at the top of the page)
+3. Copy the token
+4. In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions**
+5. Click **New repository secret**
    - Name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
-   - Value: (paste the apiKey)
-5. Click **Add secret**
+   - Value: (paste the token)
+6. Click **Add secret**
 
 The workflow will auto-deploy on pushes to `main` and on pull requests.
 
