@@ -5,7 +5,7 @@ client/config.local.js
 # Keep the example in repo
 !client/config.example.js
 
-# Tasks file - contains specific tasks
+# Tasks file - contains specific tasks (legacy location)
 azure-function/tasks.json
 
 # Dependencies
@@ -37,8 +37,8 @@ build/
 *.swo
 .DS_Store
 
-# Azure Functions
-azure-function/local.settings.json
-azure-function/.python_packages/
-azure-function/__pycache__/
+# Azure Functions / API
+api/local.settings.json
+api/.python_packages/
+api/__pycache__/
 .azure/
