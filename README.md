@@ -201,6 +201,37 @@ const CONFIG = {
 
 All changes auto-save to Azure.
 
+## GitHub Actions Deployment Setup
+
+This repo includes a GitHub Actions workflow for deploying to Azure Static Web Apps. Choose **one** of the two authentication methods below.
+
+### Option A: GitHub OIDC Authentication (Recommended)
+
+This is the more secure option—no secrets to manage or rotate.
+
+1. Azure Portal → **Create a resource** → **Static Web App**
+2. Under **Deployment details**, select **GitHub** as the source
+3. Authorize Azure to access your GitHub account
+4. Select this repo and branch (`main`)
+5. Azure automatically configures OIDC trust with GitHub Actions
+
+The workflow uses `github_id_token` for authentication. No secrets required.
+
+### Option B: Deployment Token
+
+Use this if you can't use OIDC or need manual control.
+
+1. Azure Portal → **Create a resource** → **Static Web App**
+2. After creation, go to **Overview** → **Manage deployment token**
+3. Copy the deployment token
+4. In your GitHub repo: **Settings** → **Secrets and variables** → **Actions**
+5. Click **New repository secret**
+   - Name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
+   - Value: (paste the deployment token)
+6. Click **Add secret**
+
+The workflow will auto-deploy on pushes to `main` and on pull requests.
+
 ## Managing Tasks via Azure Portal
 
 1. Storage Account → Containers → tasklists
