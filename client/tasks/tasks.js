@@ -146,7 +146,19 @@ const TasksUI = (function() {
             collectKnownTags(tasks);
             renderTasks();
         } catch (error) {
-            taskListEl.innerHTML = `<div class="error">Error loading tasks: ${escapeHtml(error.message)}</div>`;
+            if (error.code === 'NOT_FOUND') {
+                taskListEl.innerHTML = `
+                    <div class="not-found">
+                        <h2>List not found</h2>
+                        <p>The list "<strong>${escapeHtml(api.listName)}</strong>" doesn't exist.</p>
+                        <div class="not-found-actions">
+                            <a href="../home/" class="btn">Go to Home</a>
+                        </div>
+                    </div>
+                `;
+            } else {
+                taskListEl.innerHTML = `<div class="error">Error loading tasks: ${escapeHtml(error.message)}</div>`;
+            }
         }
     }
 

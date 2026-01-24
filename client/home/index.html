@@ -114,6 +114,7 @@
         </div>
     </div>
 
+    <script src="../config.js"></script>
     <script src="../shared/utils.js"></script>
     <script>
         const createBtn = document.getElementById('createBtn');
@@ -121,9 +122,28 @@
         const listNameInput = document.getElementById('listNameInput');
 
         // Create new list with random ID
-        createBtn.addEventListener('click', () => {
+        createBtn.addEventListener('click', async () => {
             const listId = generateListId();
-            window.location.href = `../tasks/?list=${encodeURIComponent(listId)}`;
+            createBtn.disabled = true;
+            createBtn.textContent = 'Creating...';
+
+            try {
+                const response = await fetch(`${CONFIG.API_BASE}/${listId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '[]'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create list');
+                }
+
+                window.location.href = `../tasks/?list=${encodeURIComponent(listId)}`;
+            } catch (error) {
+                alert('Error creating list: ' + error.message);
+                createBtn.disabled = false;
+                createBtn.textContent = 'Create New List';
+            }
         });
 
         // Go to existing list

@@ -25,18 +25,13 @@ function createApi(listName) {
             }
 
             const response = await fetch(`${baseUrl}/${listName}`);
-            
+
             if (response.status === 404) {
-                // List doesn't exist - create it
-                const createResponse = await fetch(`${baseUrl}/${listName}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: '[]'
-                });
-                if (!createResponse.ok) throw new Error('Failed to create list');
-                return [];
+                const err = new Error('List not found');
+                err.code = 'NOT_FOUND';
+                throw err;
             }
-            
+
             if (!response.ok) throw new Error('Failed to fetch tasks');
             return response.json();
         },

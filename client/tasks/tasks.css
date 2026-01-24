@@ -225,3 +225,41 @@
     background: #f5f5f5;
     color: #666;
 }
+
+/* Not found state */
+.not-found {
+    text-align: center;
+    padding: 48px 24px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    margin-top: 24px;
+}
+
+.not-found h2 {
+    margin: 0 0 12px 0;
+    color: #666;
+}
+
+.not-found p {
+    color: #888;
+    margin: 0 0 24px 0;
+}
+
+.not-found-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.not-found .btn {
+    padding: 12px 24px;
+    background: #2196f3;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.not-found .btn:hover {
+    background: #1976d2;
+}
