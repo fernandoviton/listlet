@@ -1,9 +1,5 @@
-# Config file - contains deployment-specific values
-client/config.js
+# Local config override (optional, for local dev with different settings)
 client/config.local.js
-
-# Keep the example in repo
-!client/config.example.js
 
 # Tasks file - contains specific tasks (legacy location)
 azure-function/tasks.json

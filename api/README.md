@@ -56,15 +56,11 @@ In Azure Portal → Your Static Web App → Configuration → Application settin
 | `BLOB_SAS_URL` | Full SAS URL to your storage account (e.g., `https://account.blob.core.windows.net/container?sv=...&sig=...`) |
 | `BLOB_CONTAINER_NAME` | Container name for task lists (e.g., `tasklists`) |
 
-### 3. Update Client Config
+### 3. Client Config
 
-Update `client/config.js`:
-```js
-const CONFIG = {
-    API_BASE: '/api/tasks',  // Relative path for SWA
-    DEFAULT_LIST_NAME: 'tasks'
-};
-```
+`client/config.js` is already configured for SWA with `API_BASE: '/api/tasks'`.
+
+For local development with a different API endpoint, create `client/config.local.js` (gitignored).
 
 ### 4. Deploy
 
