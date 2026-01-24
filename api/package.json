@@ -2,6 +2,9 @@
   "name": "tasks-api",
   "version": "1.0.0",
   "description": "Azure Function for task list API",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@azure/storage-blob": "^12.17.0"
   }
