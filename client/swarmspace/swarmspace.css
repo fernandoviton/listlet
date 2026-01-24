@@ -1,0 +1,589 @@
+/* Swarm Space RPG Session Tracker Styles */
+
+.container {
+    max-width: 900px;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    margin: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Cards */
+.card {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Session metadata */
+.session-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.session-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.session-setting {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.starting-week-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.starting-week-row label {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.starting-week-input {
+    width: 80px;
+    padding: 8px 12px;
+}
+
+/* Week sections */
+.week-section {
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.week-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    user-select: none;
+}
+
+.week-header:hover {
+    background: #f0f1f2;
+}
+
+/* Completed week - green header */
+.week-section.week-complete .week-header {
+    background: #c8e6c9;
+    border-bottom-color: #a5d6a7;
+}
+
+.week-section.week-complete .week-header:hover {
+    background: #b9debb;
+}
+
+.week-section.week-complete .week-title {
+    color: #2e7d32;
+}
+
+/* Current week - highlighted */
+.week-section.week-current .week-header {
+    background: #fff3e0;
+    border-bottom-color: #ffcc80;
+}
+
+.week-section.week-current .week-header:hover {
+    background: #ffe0b2;
+}
+
+.week-section.week-current .week-title {
+    color: #e65100;
+    font-weight: 700;
+}
+
+.week-title {
+    font-weight: 600;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.week-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.make-current-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 4px;
+    color: #1976d2;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.week-header:hover .make-current-btn {
+    opacity: 1;
+}
+
+.make-current-btn:hover {
+    background: #bbdefb;
+}
+
+.current-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: #ff9800;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.week-toggle {
+    color: #666;
+    transition: transform 0.2s;
+}
+
+.week-section.collapsed .week-toggle {
+    transform: rotate(-90deg);
+}
+
+.week-section.collapsed .week-content {
+    display: none;
+}
+
+.week-content {
+    padding: 16px;
+}
+
+.week-delete {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 1rem;
+}
+
+.week-delete:hover {
+    color: #d32f2f;
+}
+
+/* Entry blocks (event, action, completion) */
+.entry-block {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.entry-block:last-child {
+    margin-bottom: 0;
+}
+
+.entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.entry-type {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.entry-type.event { color: #1976d2; }
+.entry-type.discussion { color: #7b1fa2; }
+.entry-type.discovery { color: #388e3c; }
+.entry-type.project { color: #f57c00; }
+.entry-type.completion { color: #0097a7; }
+
+.entry-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.entry-action-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+}
+
+.entry-action-btn:hover {
+    background: #e0e0e0;
+}
+
+.entry-body {
+    padding: 12px;
+}
+
+.entry-text {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+}
+
+.entry-text:focus {
+    border-color: #2196f3;
+    outline: none;
+}
+
+.entry-text[readonly] {
+    background: #fafafa;
+    border-color: transparent;
+    resize: none;
+}
+
+/* Action type selector */
+.action-type-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.action-type-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-type-btn:hover {
+    border-color: #aaa;
+}
+
+.action-type-btn.active {
+    border-color: #2196f3;
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.action-type-btn.discussion.active { border-color: #7b1fa2; background: #f3e5f5; color: #7b1fa2; }
+.action-type-btn.discovery.active { border-color: #388e3c; background: #e8f5e9; color: #388e3c; }
+.action-type-btn.project.active { border-color: #f57c00; background: #fff3e0; color: #f57c00; }
+
+/* Comments */
+.comments-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+}
+
+.comment {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    align-items: flex-start;
+}
+
+.comment-text {
+    flex: 1;
+    color: #333;
+}
+
+.comment-delete {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 0.8rem;
+}
+
+.comment-delete:hover {
+    color: #d32f2f;
+}
+
+.add-comment-btn, .add-completion-btn {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #666;
+}
+
+.add-comment-btn:hover, .add-completion-btn:hover {
+    background: #e0e0e0;
+}
+
+.add-completion-btn {
+    margin-bottom: 12px;
+}
+
+/* Completion entries */
+.completion-block {
+    background: #e8f5e9;
+    border-color: #a5d6a7;
+}
+
+.completion-block .entry-header {
+    background: #c8e6c9;
+    border-color: #a5d6a7;
+}
+
+.completion-outcome {
+    margin-top: 8px;
+}
+
+.completion-outcome label {
+    display: block;
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+/* Add week button */
+.add-week-btn {
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+/* Summary panels */
+.summary-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.summary-panel h3 {
+    margin: 0 0 12px 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+
+.summary-item-name {
+    font-weight: 500;
+}
+
+.summary-item-detail {
+    color: #666;
+    font-size: 0.8rem;
+}
+
+.summary-item-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.summary-item-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+}
+
+.summary-item-btn:hover {
+    color: #333;
+}
+
+.summary-item-btn.delete:hover {
+    color: #d32f2f;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.status-badge.abundant { background: #c8e6c9; color: #2e7d32; }
+.status-badge.sufficient { background: #fff9c4; color: #f57f17; }
+.status-badge.scarce { background: #ffccbc; color: #e64a19; }
+.status-badge.critical { background: #ffcdd2; color: #c62828; }
+.status-badge.active { background: #bbdefb; color: #1565c0; }
+.status-badge.completed { background: #c8e6c9; color: #2e7d32; }
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    margin-top: 8px;
+}
+
+/* Modal tweaks */
+.modal-wide {
+    min-width: 500px;
+    max-width: 90vw;
+}
+
+.modal textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.9rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.modal textarea:focus {
+    border-color: #2196f3;
+    outline: none;
+}
+
+.modal textarea[readonly] {
+    background: #f5f5f5;
+    font-family: monospace;
+    font-size: 0.8rem;
+}
+
+.modal select {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: white;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.form-row label {
+    white-space: nowrap;
+    color: #666;
+}
+
+.form-row input[type="number"] {
+    width: 80px;
+    padding: 8px;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+}
+
+.modal-hint {
+    color: #666;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+/* Import section */
+.import-section {
+    margin-top: 24px;
+    text-align: center;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 24px;
+    color: #666;
+}
+
+/* Project in week display */
+.project-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+    background: #fff3e0;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.project-name-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    background: #fff3e0;
+    border: 1px solid #ffcc80;
+    border-radius: 6px;
+}
+
+.project-name-label {
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.project-name-value {
+    font-weight: 600;
+    color: #e65100;
+    font-size: 1rem;
+}
+
+.project-change-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.project-change-btn:hover {
+    opacity: 1;
+    color: #e65100;
+}
