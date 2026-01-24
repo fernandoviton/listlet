@@ -203,32 +203,26 @@ All changes auto-save to Azure.
 
 ## GitHub Actions Deployment Setup
 
-This repo includes a GitHub Actions workflow for deploying to Azure Static Web Apps. Choose **one** of the two authentication methods below.
+This repo includes a GitHub Actions workflow for deploying to Azure Static Web Apps.
 
-### Option A: GitHub OIDC Authentication (Recommended)
-
-This is the more secure option—no secrets to manage or rotate.
-
+### 1. Create Azure Static Web App
 1. Azure Portal → **Create a resource** → **Static Web App**
 2. Under **Deployment details**, select **GitHub** as the source
 3. Authorize Azure to access your GitHub account
 4. Select this repo and branch (`main`)
-5. Azure automatically configures OIDC trust with GitHub Actions
+5. Complete the wizard and create the resource
 
-The workflow uses `github_id_token` for authentication. No secrets required.
-
-### Option B: Deployment Token
-
-Use this if you can't use OIDC or need manual control.
-
-1. Azure Portal → **Create a resource** → **Static Web App**
-2. After creation, go to **Overview** → **Manage deployment token**
-3. Copy the deployment token
-4. In your GitHub repo: **Settings** → **Secrets and variables** → **Actions**
-5. Click **New repository secret**
+### 2. Add Deployment Token to GitHub
+1. Get the deployment token using Azure CLI:
+   ```bash
+   az staticwebapp secrets list --name <your-app-name> --resource-group <your-resource-group>
+   ```
+2. Copy the `apiKey` value from the output
+3. In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions**
+4. Click **New repository secret**
    - Name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
-   - Value: (paste the deployment token)
-6. Click **Add secret**
+   - Value: (paste the apiKey)
+5. Click **Add secret**
 
 The workflow will auto-deploy on pushes to `main` and on pull requests.
 
