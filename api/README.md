@@ -69,18 +69,65 @@ Push to GitHub. Azure Static Web Apps automatically builds and deploys on push.
 ## API Endpoints
 
 ### GET /api/tasks/{listName}
-Fetch tasks for a list.
+Fetch the document for a list.
 
-**Response**: `200 OK` with JSON array of tasks, or `404` if list doesn't exist.
+**Response**: `200 OK` with JSON document, or `404` if list doesn't exist.
 
 ### PUT /api/tasks/{listName}
-Save tasks for a list. Creates the list if it doesn't exist.
+Replace entire document. Creates the list if it doesn't exist.
 
-**Request body**: JSON array of tasks
+**Request body**: JSON document
 **Response**: `200 OK` with `{ "success": true }`
+
+### POST /api/tasks/{listName}
+Atomically append an item to an array. Uses ETag-based optimistic locking for multi-user support.
+
+**Request body**:
+```json
+{
+  "path": "weeks.0.event.comments",
+  "value": { "id": "c1", "text": "My comment" }
+}
+```
+
+**Path examples**:
+| Path | Target |
+|------|--------|
+| `resources` | `doc.resources` |
+| `weeks.0.completions` | `doc.weeks[0].completions` |
+| `weeks.0.event.comments` | `doc.weeks[0].event.comments` |
+
+**Response**: `200 OK` with `{ "success": true, "data": <full document> }`
+**Conflict**: `409` with `{ "error": "Conflict, please retry" }` - client should retry
+
+### DELETE /api/tasks/{listName}
+Atomically remove an item from an array by ID. Uses ETag-based optimistic locking.
+
+**Request body**:
+```json
+{
+  "path": "resources",
+  "id": "r1"
+}
+```
+
+**Response**: `200 OK` with `{ "success": true, "data": <full document> }`
+**Not found**: `404` with `{ "error": "Item not found" }`
+**Conflict**: `409` with `{ "error": "Conflict, please retry" }` - client should retry
 
 ### OPTIONS /api/tasks/{listName}
 CORS preflight.
+
+## Testing
+
+Run the test suite:
+```bash
+cd api
+npm install
+npm test
+```
+
+Tests cover all endpoints, path navigation, conflict handling, and integration scenarios. See `tasks/index.test.js` for usage examples.
 
 ## Storage
 

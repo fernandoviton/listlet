@@ -1,11 +1,24 @@
 const { BlobServiceClient } = require('@azure/storage-blob');
 
+/**
+ * Navigate to a nested path in an object
+ * @param {Object} obj - The object to navigate
+ * @param {string} path - Dot-separated path (e.g., 'weeks.0.event.comments')
+ * @returns {*} - The value at the path, or undefined if not found
+ */
+function navigateToPath(obj, path) {
+    return path.split('.').reduce((curr, part) => {
+        if (curr === undefined) return undefined;
+        return /^\d+$/.test(part) ? curr[parseInt(part)] : curr[part];
+    }, obj);
+}
+
 module.exports = async function (context, req) {
     // CORS headers
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
     };
 
@@ -51,6 +64,92 @@ module.exports = async function (context, req) {
             const data = JSON.stringify(req.body);
             await blobClient.upload(data, data.length, { overwrite: true });
             context.res = { status: 200, headers, body: JSON.stringify({ success: true }) };
+        }
+        else if (req.method === 'POST') {
+            // Atomic append to array with ETag-based optimistic locking
+            const { path, value } = req.body;
+
+            if (!path || value === undefined) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Missing path or value' }) };
+                return;
+            }
+
+            // GET with ETag
+            const downloadResponse = await blobClient.download(0);
+            const etag = downloadResponse.etag;
+            const content = await streamToString(downloadResponse.readableStreamBody);
+            const data = JSON.parse(content);
+
+            // Navigate to path and append value
+            const target = navigateToPath(data, path);
+            if (!Array.isArray(target)) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Path must point to array' }) };
+                return;
+            }
+            target.push(value);
+
+            // PUT with If-Match (optimistic locking)
+            try {
+                const newData = JSON.stringify(data);
+                await blobClient.upload(newData, newData.length, {
+                    overwrite: true,
+                    conditions: { ifMatch: etag }
+                });
+                // Return full document for client sync
+                context.res = { status: 200, headers, body: JSON.stringify({ success: true, data }) };
+            } catch (e) {
+                if (e.statusCode === 412) {
+                    context.res = { status: 409, headers, body: JSON.stringify({ error: 'Conflict, please retry' }) };
+                    return;
+                }
+                throw e;
+            }
+        }
+        else if (req.method === 'DELETE') {
+            // Atomic remove from array by id with ETag-based optimistic locking
+            const { path, id } = req.body;
+
+            if (!path || !id) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Missing path or id' }) };
+                return;
+            }
+
+            // GET with ETag
+            const downloadResponse = await blobClient.download(0);
+            const etag = downloadResponse.etag;
+            const content = await streamToString(downloadResponse.readableStreamBody);
+            const data = JSON.parse(content);
+
+            // Navigate to path and remove item by id
+            const target = navigateToPath(data, path);
+            if (!Array.isArray(target)) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Path must point to array' }) };
+                return;
+            }
+
+            const index = target.findIndex(item => item.id === id);
+            if (index === -1) {
+                context.res = { status: 404, headers, body: JSON.stringify({ error: 'Item not found' }) };
+                return;
+            }
+            target.splice(index, 1);
+
+            // PUT with If-Match (optimistic locking)
+            try {
+                const newData = JSON.stringify(data);
+                await blobClient.upload(newData, newData.length, {
+                    overwrite: true,
+                    conditions: { ifMatch: etag }
+                });
+                // Return full document for client sync
+                context.res = { status: 200, headers, body: JSON.stringify({ success: true, data }) };
+            } catch (e) {
+                if (e.statusCode === 412) {
+                    context.res = { status: 409, headers, body: JSON.stringify({ error: 'Conflict, please retry' }) };
+                    return;
+                }
+                throw e;
+            }
         }
     } catch (error) {
         if (error.statusCode === 404) {

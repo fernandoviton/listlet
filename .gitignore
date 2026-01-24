@@ -38,3 +38,6 @@ api/local.settings.json
 api/.python_packages/
 api/__pycache__/
 .azure/
+
+# Claude
+.claude/
