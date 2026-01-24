@@ -108,9 +108,44 @@ client/
 - ✅ "Create New List" button → generates random ID, redirects to `/tasks/?list={id}`
 - ✅ "Go to existing list" form → enter list name, go to it
 
-### Future Enhancements
-- **Recent Lists** → stored in localStorage, displayed as quick links
-- **List management** → rename, delete, share options
+### Goal
+Track recently visited lists in localStorage and display on home page.
+
+### Data Model (localStorage)
+```js
+// Key: 'recentLists'
+// Value: Array of recent lists, most recent first (max 10)
+[
+  { id: "abc123", lastAccessed: 1706123456789 },
+  { id: "x7k2m9p3", lastAccessed: 1706123000000 }
+]
+```
+
+### Implementation
+
+**1. Track visits (in tasks page)**
+- When tasks page loads successfully, call `addToRecentLists(listName)`
+- Adds/updates entry in localStorage array
+- Keep max 10 entries, sorted by lastAccessed
+
+**2. Display on home page**
+- Read from localStorage on page load
+- Show "Recent Lists" section below create button
+- Each item is clickable link to `/tasks/?list={id}`
+- Show relative time ("2 hours ago", "yesterday")
+- "Clear" button to remove history
+
+**3. Files to modify**
+- `client/shared/utils.js` - add `addToRecentLists()`, `getRecentLists()`, `clearRecentLists()`
+- `client/tasks/tasks.js` - call `addToRecentLists()` on successful load
+- `client/home/index.html` - display recent lists section
+
+### Testing Checklist
+- [ ] Visit a list → appears in recent lists on home page
+- [ ] Visit multiple lists → ordered by most recent
+- [ ] More than 10 lists → oldest dropped
+- [ ] Clear button removes all recent lists
+- [ ] Recent lists persist across browser sessions
 
 ---
 
@@ -150,65 +185,184 @@ meals.html?list=xyz                    → direct link to meal board
 
 ---
 
-## Phase 6: Authentication (Future)
+## Phase 6: Migrate to Azure Static Web Apps (Future)
 
-### Goals
-- Protect lists so only authorized users can view/edit
-- Support sharing with specific people or making lists public
+### Goal
+Migrate from Azure Storage static website + separate Azure Function to Azure Static Web Apps. No functional changes - just infrastructure.
 
-### Options to Consider
+### Why Migrate
+| Feature | Azure Storage Static Site (current) | Azure Static Web Apps |
+|---------|-------------------------------------|----------------------|
+| Hosting | Blob container serves files | Dedicated static hosting |
+| Auth | None built-in | Built-in (GitHub, Google, Microsoft) |
+| Functions | Separate Azure Function app | Integrated in same project |
+| Cost | ~$1/month | Free tier available |
+| Deploy | Manual / separate | GitHub Actions auto-deploy |
 
-#### Option A: Azure AD B2C / Entra ID
-- **Pros**: Enterprise-grade, integrates with Azure Functions, supports social logins
-- **Cons**: Complex setup, may be overkill for simple app
-- **Use when**: Need organizational accounts or enterprise features
+### Current Architecture
+```
+checklist-spa/
+├── client/           → deployed to Azure Storage static site
+│   ├── index.html
+│   ├── home/
+│   ├── tasks/
+│   └── shared/
+└── azure-function/   → deployed to separate Azure Function App
+    └── TasksApi/
+```
 
-#### Option B: Simple Token-Based
-- **Pros**: Simple to implement, no external dependencies
-- **Cons**: Less secure, manual token management
-- **Implementation**:
-  - Each list has an optional `editToken` and `viewToken`
-  - Store in list metadata or separate blob
-  - Pass token in header or query param: `?list=xyz&token=abc123`
-  - API validates token before allowing access
+### Target Architecture
+```
+checklist-spa/
+├── client/                      → Static Web App serves this
+│   ├── index.html
+│   ├── home/
+│   ├── tasks/
+│   ├── shared/
+│   └── staticwebapp.config.json → routing + future auth config
+└── api/                         → Integrated Azure Functions
+    ├── tasks/
+    │   └── index.js
+    ├── host.json
+    └── package.json
+```
 
-#### Option C: Azure Static Web Apps Auth
-- **Pros**: Built-in auth providers (GitHub, Twitter, etc.), easy setup
-- **Cons**: Requires migrating to Azure Static Web Apps
-- **Use when**: Want simple social login without complexity
+### Implementation Steps
 
-#### Option D: Passwordless / Magic Links
-- **Pros**: Great UX, no passwords to remember
-- **Cons**: Requires email service setup
-- **Implementation**:
-  - User enters email to create/access list
-  - Send magic link with temporary token
-  - Token grants access for session
+**1. Restructure project**
+- Rename `azure-function/` → `api/`
+- Move `TasksApi/` → `api/tasks/` (SWA uses folder-based routing)
+- Update function bindings if needed
 
-### Recommended Approach for This App
-**Option B (Simple Token-Based)** for MVP:
-1. When creating a list, generate an `editToken`
-2. Store: `{listName}-meta.json` with `{ editToken: "xxx", created: "...", public: false }`
-3. Read-only access: Allow GET without token if `public: true`
-4. Edit access: Require `Authorization: Bearer {editToken}` header
-
-Later, can layer on Option C or D for better UX.
-
-### Data Model Changes
+**2. Add Static Web Apps config**
+- Create `client/staticwebapp.config.json`:
 ```json
-// {listName}-meta.json (new file per list)
 {
-  "created": "2026-01-18T...",
-  "editToken": "abc123def456",
-  "public": false,
-  "owner": "optional-email@example.com"
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
+  "routes": [
+    { "route": "/api/*", "allowedRoles": ["anonymous"] }
+  ]
 }
 ```
 
-### API Changes
-- New endpoint: `POST /api/lists` - Create list with token, return token to user
-- Modify: `GET /api/tasks/{listName}` - Check public flag or require token
-- Modify: `PUT /api/tasks/{listName}` - Always require edit token
+**3. Create Azure Static Web App resource**
+- In Azure Portal: Create → Static Web App
+- Connect to GitHub repo
+- Set app location: `/client`
+- Set API location: `/api`
+- Set output location: (empty, no build step)
+
+**4. Update client config**
+- Change `CONFIG.API_BASE` from full URL to `/api/tasks`
+- SWA proxies `/api/*` to the integrated functions
+
+**5. Environment variables**
+- Move `BLOB_SAS_URL` and `BLOB_CONTAINER_NAME` to SWA app settings
+- Remove old Function App after confirming SWA works
+
+**6. DNS / Custom domain (if applicable)**
+- Update DNS to point to new SWA endpoint
+- Or keep using SWA's auto-generated URL
+
+### Files to Create/Modify
+- Create: `client/staticwebapp.config.json`
+- Move: `azure-function/` → `api/`
+- Modify: `api/tasks/function.json` (update route if needed)
+- Modify: `client/config.js` (change API_BASE)
+- Delete (after migration): old Azure Function App, Storage static site
+
+### Testing Checklist
+- [ ] SWA deploys from GitHub push
+- [ ] Home page loads at SWA URL
+- [ ] Create new list works
+- [ ] Add/edit/delete tasks works
+- [ ] Existing lists accessible via `?list=` param
+
+---
+
+## Phase 7: Authentication (Future)
+
+### Goal
+Add login requirement for write access using Azure Static Web Apps built-in auth.
+
+### Auth Model
+- **Read (GET)**: Always public, no login required
+- **Write (PUT)**: Requires authenticated user
+
+### How SWA Auth Works
+- Built-in providers: GitHub, Google, Microsoft, Twitter
+- Login URL: `/.auth/login/{provider}` (e.g., `/.auth/login/github`)
+- Logout URL: `/.auth/logout`
+- User info: `/.auth/me` returns `{ clientPrincipal: { userId, userDetails, identityProvider } }`
+- Functions receive user info in `x-ms-client-principal` header
+
+### Implementation
+
+**1. Configure allowed providers**
+Update `staticwebapp.config.json`:
+```json
+{
+  "auth": {
+    "identityProviders": {
+      "github": { "registration": { "clientId": "..." } }
+    }
+  },
+  "routes": [
+    { "route": "/api/tasks/*", "methods": ["GET"], "allowedRoles": ["anonymous"] },
+    { "route": "/api/tasks/*", "methods": ["PUT"], "allowedRoles": ["authenticated"] }
+  ]
+}
+```
+
+**2. Add login UI to client**
+- Show "Login to edit" button when not authenticated
+- After login, show user info + logout button
+- Check `/.auth/me` on page load to get auth state
+
+**3. Update API (optional enhancements)**
+- Read `x-ms-client-principal` header to get user ID
+- Store list ownership: `{listName}-meta.json` with `{ owner: "github|12345" }`
+- Only allow owner to edit (or allow all authenticated users initially)
+
+### Ownership Model Options
+
+**Option A: Any authenticated user can edit any list**
+- Simplest to implement
+- Good for collaborative/shared lists
+- Just check `allowedRoles: ["authenticated"]` in route config
+
+**Option B: Only owner can edit**
+- Store owner ID when list is created
+- API checks `x-ms-client-principal.userId === meta.owner`
+- Requires metadata file per list
+
+**Recommendation**: Start with Option A, add ownership later if needed.
+
+### Data Model (for Option B, future)
+```json
+// {listName}-meta.json
+{
+  "created": "2026-01-23T...",
+  "owner": "github|12345678"
+}
+```
+
+### Files to Modify
+- `client/staticwebapp.config.json` - add route auth rules
+- `client/shared/auth.js` (new) - `getUser()`, `isLoggedIn()`, `loginUrl()`, `logout()`
+- `client/tasks/index.html` - show login button, disable edit when not logged in
+- `client/home/index.html` - show login status
+- `api/tasks/index.js` - (Option B only) check ownership
+
+### Testing Checklist
+- [ ] Can view list without logging in
+- [ ] Cannot save changes without logging in
+- [ ] Login with GitHub works
+- [ ] After login, can save changes
+- [ ] Logout works
+- [ ] User info displayed correctly
 
 ---
 
@@ -219,11 +373,13 @@ Later, can layer on Option C or D for better UX.
 - ✅ Phase 2: Auto-create lists on 404
 - ✅ Phase 3: Router architecture + home page + folder reorganization
 
-### Next (Phase 5)
-- Build meal board template (see PLAN-MEALBOARD.md)
+### Next
+- **Phase 4**: Home page enhancements (recent lists)
+- **Phase 6**: Migrate to Azure Static Web Apps
+- **Phase 7**: Authentication (built-in SWA auth)
 
-### Later (Phase 6)
-- Implement basic auth (tokens)
+### Later
+- Phase 5: Meal board template (see PLAN-MEALBOARD.md)
 
 ---
 
@@ -234,7 +390,8 @@ Later, can layer on Option C or D for better UX.
 - **Rate limiting**: Consider Azure Function rate limits for abuse prevention
 - **Input validation**: Sanitize list names (alphanumeric, hyphens, max 64 chars)
 - **Reserved character**: `~` is reserved for system-generated sub-lists (e.g., `mylist~shopping`)
-- **Token storage**: Edit tokens should be shown once, stored by user (like API keys)
+- **Auth model**: Read is public (anyone with list URL), write requires SWA login
+- **SWA auth**: Managed by Azure, tokens handled automatically, no secrets in client code
 
 ---
 
@@ -255,17 +412,29 @@ Later, can layer on Option C or D for better UX.
 - [x] `/home/` → shows create button and direct access form
 - [x] Create button → generates random ID, redirects correctly
 
-### Phase 4 (Future)
-- [ ] Recent lists stored in localStorage
-- [ ] Recent lists displayed on home page
+### Phase 4
+- [ ] Visit a list → appears in recent lists on home page
+- [ ] Visit multiple lists → ordered by most recent
+- [ ] More than 10 lists → oldest dropped
+- [ ] Clear button removes all recent lists
+- [ ] Recent lists persist across browser sessions
 
-### Phase 5
+### Phase 5 (Later)
 - [ ] `meals.html?list=xyz` → loads meal board view
 - [ ] `index.html?list=xyz&template=meals` → redirects to meal board
 - [ ] Meal board uses same API/data format as tasks
 
-### Phase 6
-- [ ] Create list returns edit token
-- [ ] PUT without token → 401
-- [ ] GET on public list → works without token
-- [ ] GET on private list without token → 401
+### Phase 6 (SWA Migration)
+- [ ] SWA deploys from GitHub push
+- [ ] Home page loads at SWA URL
+- [ ] Create new list works
+- [ ] Add/edit/delete tasks works
+- [ ] Existing lists accessible via `?list=` param
+
+### Phase 7 (Auth)
+- [ ] Can view list without logging in
+- [ ] Cannot save changes without logging in
+- [ ] Login with GitHub works
+- [ ] After login, can save changes
+- [ ] Logout works
+- [ ] User info displayed correctly
