@@ -1,13 +1,6 @@
 const { BlobServiceClient } = require('@azure/storage-blob');
 
 module.exports = async function (context, req) {
-    const listName = context.bindingData.listName;
-    const blobName = `${listName}.json`;
-    
-    // SAS URL format: https://<account>.blob.core.windows.net/<container>?<sas-token>
-    const sasUrl = process.env.BLOB_SAS_URL;
-    const containerName = process.env.BLOB_CONTAINER_NAME || 'tasklists';
-    
     // CORS headers
     const headers = {
         'Content-Type': 'application/json',
@@ -22,10 +15,29 @@ module.exports = async function (context, req) {
         return;
     }
 
-    // Parse SAS URL to get the base URL and token
-    const url = new URL(sasUrl);
-    const sasToken = url.search; // includes the '?'
-    const blobServiceClient = new BlobServiceClient(`${url.origin}${sasToken}`);
+    const listName = context.bindingData.listName;
+    const blobName = `${listName}.json`;
+
+    const sasUrl = process.env.BLOB_SAS_URL;
+    const containerName = process.env.BLOB_CONTAINER_NAME || 'tasklists';
+
+    // Validate env vars
+    if (!sasUrl) {
+        context.res = { status: 500, headers, body: JSON.stringify({ error: 'BLOB_SAS_URL not configured' }) };
+        return;
+    }
+
+    let blobServiceClient;
+    try {
+        // SAS URL format: https://<account>.blob.core.windows.net?<sas-token>
+        const url = new URL(sasUrl);
+        const sasToken = url.search; // includes the '?'
+        blobServiceClient = new BlobServiceClient(`${url.origin}${sasToken}`);
+    } catch (e) {
+        context.res = { status: 500, headers, body: JSON.stringify({ error: `Invalid BLOB_SAS_URL: ${e.message}` }) };
+        return;
+    }
+
     const containerClient = blobServiceClient.getContainerClient(containerName);
     const blobClient = containerClient.getBlockBlobClient(blobName);
 
