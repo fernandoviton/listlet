@@ -12,7 +12,7 @@
 |----------|--------|-----------|
 | URL format | `?list=xyz` query param | Simple, works with static hosting, extensible |
 | No `?list=` param | Use default list from config | Backward compatible, easy testing |
-| List creation | Auto-create on first access | No manual blob uploads needed (Phase 2) |
+| List creation | Homepage creates via PUT | Only homepage can create lists (Phase 2, updated Phase 6) |
 | List IDs | Any string via `?list=` | Home page generates random IDs, users can also use friendly names |
 | Auth | Future phase | Currently public by URL (security through obscurity for random IDs) |
 
@@ -41,23 +41,24 @@ https://example.com/index.html                  → uses DEFAULT_LIST_NAME from 
 
 ---
 
-## Phase 2: Auto-Create Lists ✅ COMPLETE (Jan 2026)
+## Phase 2: List Creation ✅ COMPLETE (Jan 2026, updated Phase 6)
 
-### Current Behavior
-- GET on non-existent list returns 404
-- Must manually upload JSON to blob storage
-
-### New Behavior
-- Client detects 404 → PUTs empty list `[]` → uses empty list
-- Enables instant list creation: just visit `?list=anything`
+### Behavior
+- Only the homepage can create new lists
+- Homepage "Create New List" button → PUT empty `[]` → redirect to tasks page
+- Tasks page shows friendly "List not found" for non-existent lists
+- "Go to existing list" navigates directly (shows not-found if doesn't exist)
 
 ### Implementation Summary
-- Client-side approach: `fetchTasks()` handles 404 by creating the list
-- API remains RESTful (GET has no side effects)
-- Client knows when a list is brand new (could show welcome message in future)
+- Homepage calls PUT to create list before redirecting
+- Tasks page does NOT auto-create on 404
+- Friendly not-found UI with "Go to Home" button
 
 ### Files Modified
-- [index.html](index.html) - `fetchTasks()` handles 404 → PUT `[]`
+- `client/home/index.html` - Creates list via PUT before redirect
+- `client/shared/api.js` - Removed auto-create, throws `NOT_FOUND` error on 404
+- `client/tasks/tasks.js` - Handles NOT_FOUND with friendly UI
+- `client/tasks/tasks.css` - Styles for not-found state
 
 ---
 
@@ -185,13 +186,13 @@ meals.html?list=xyz                    → direct link to meal board
 
 ---
 
-## Phase 6: Migrate to Azure Static Web Apps (Future)
+## Phase 6: Migrate to Azure Static Web Apps ✅ COMPLETE (Jan 2026)
 
 ### Goal
-Migrate from Azure Storage static website + separate Azure Function to Azure Static Web Apps. No functional changes - just infrastructure.
+Migrate from Azure Storage static website + separate Azure Function to Azure Static Web Apps.
 
 ### Why Migrate
-| Feature | Azure Storage Static Site (current) | Azure Static Web Apps |
+| Feature | Azure Storage Static Site (old) | Azure Static Web Apps (new) |
 |---------|-------------------------------------|----------------------|
 | Hosting | Blob container serves files | Dedicated static hosting |
 | Auth | None built-in | Built-in (GitHub, Google, Microsoft) |
@@ -199,86 +200,40 @@ Migrate from Azure Storage static website + separate Azure Function to Azure Sta
 | Cost | ~$1/month | Free tier available |
 | Deploy | Manual / separate | GitHub Actions auto-deploy |
 
-### Current Architecture
-```
-checklist-spa/
-├── client/           → deployed to Azure Storage static site
-│   ├── index.html
-│   ├── home/
-│   ├── tasks/
-│   └── shared/
-└── azure-function/   → deployed to separate Azure Function App
-    └── TasksApi/
-```
-
-### Target Architecture
+### Architecture
 ```
 checklist-spa/
 ├── client/                      → Static Web App serves this
 │   ├── index.html
+│   ├── config.js                → API_BASE: '/api/tasks'
 │   ├── home/
 │   ├── tasks/
 │   ├── shared/
-│   └── staticwebapp.config.json → routing + future auth config
+│   └── staticwebapp.config.json → routing + auth config
 └── api/                         → Integrated Azure Functions
     ├── tasks/
-    │   └── index.js
+    │   ├── index.js
+    │   └── function.json
     ├── host.json
-    └── package.json
+    ├── package.json
+    └── README.md                → Deployment instructions
 ```
 
-### Implementation Steps
+### Implementation Summary
+- Renamed `azure-function/` → `api/`
+- Moved `TasksApi/` → `api/tasks/`
+- Created `client/staticwebapp.config.json` with navigation fallback and routes
+- Changed `CONFIG.API_BASE` to `/api/tasks` (relative path for SWA)
+- Added `api/README.md` with deployment instructions
+- Committed `client/config.js` (no longer gitignored - just contains relative path)
+- Environment variables (`BLOB_SAS_URL`, `BLOB_CONTAINER_NAME`) configured in SWA app settings
 
-**1. Restructure project**
-- Rename `azure-function/` → `api/`
-- Move `TasksApi/` → `api/tasks/` (SWA uses folder-based routing)
-- Update function bindings if needed
-
-**2. Add Static Web Apps config**
-- Create `client/staticwebapp.config.json`:
-```json
-{
-  "navigationFallback": {
-    "rewrite": "/index.html"
-  },
-  "routes": [
-    { "route": "/api/*", "allowedRoles": ["anonymous"] }
-  ]
-}
-```
-
-**3. Create Azure Static Web App resource**
-- In Azure Portal: Create → Static Web App
-- Connect to GitHub repo
-- Set app location: `/client`
-- Set API location: `/api`
-- Set output location: (empty, no build step)
-
-**4. Update client config**
-- Change `CONFIG.API_BASE` from full URL to `/api/tasks`
-- SWA proxies `/api/*` to the integrated functions
-
-**5. Environment variables**
-- Move `BLOB_SAS_URL` and `BLOB_CONTAINER_NAME` to SWA app settings
-- Remove old Function App after confirming SWA works
-
-**6. DNS / Custom domain (if applicable)**
-- Update DNS to point to new SWA endpoint
-- Or keep using SWA's auto-generated URL
-
-### Files to Create/Modify
-- Create: `client/staticwebapp.config.json`
-- Move: `azure-function/` → `api/`
-- Modify: `api/tasks/function.json` (update route if needed)
-- Modify: `client/config.js` (change API_BASE)
-- Delete (after migration): old Azure Function App, Storage static site
-
-### Testing Checklist
-- [ ] SWA deploys from GitHub push
-- [ ] Home page loads at SWA URL
-- [ ] Create new list works
-- [ ] Add/edit/delete tasks works
-- [ ] Existing lists accessible via `?list=` param
+### Files Modified
+- `api/` - Entire folder restructured from `azure-function/`
+- `api/README.md` - New deployment documentation
+- `client/staticwebapp.config.json` - New SWA config
+- `client/config.js` - Now committed, uses `/api/tasks`
+- `.gitignore` - Updated paths, removed config.js from ignore
 
 ---
 
@@ -370,12 +325,12 @@ Update `staticwebapp.config.json`:
 
 ### Completed
 - ✅ Phase 1: URL parameter support
-- ✅ Phase 2: Auto-create lists on 404
+- ✅ Phase 2: List creation (homepage only)
 - ✅ Phase 3: Router architecture + home page + folder reorganization
+- ✅ Phase 6: Migrate to Azure Static Web Apps
 
 ### Next
 - **Phase 4**: Home page enhancements (recent lists)
-- **Phase 6**: Migrate to Azure Static Web Apps
 - **Phase 7**: Authentication (built-in SWA auth)
 
 ### Later
@@ -424,12 +379,13 @@ Update `staticwebapp.config.json`:
 - [ ] `index.html?list=xyz&template=meals` → redirects to meal board
 - [ ] Meal board uses same API/data format as tasks
 
-### Phase 6 (SWA Migration)
-- [ ] SWA deploys from GitHub push
-- [ ] Home page loads at SWA URL
-- [ ] Create new list works
-- [ ] Add/edit/delete tasks works
-- [ ] Existing lists accessible via `?list=` param
+### Phase 6 (SWA Migration) ✅
+- [x] SWA deploys from GitHub push
+- [x] Home page loads at SWA URL
+- [x] Create new list works
+- [x] Add/edit/delete tasks works
+- [x] Existing lists accessible via `?list=` param
+- [x] Non-existent list shows friendly "List not found" page
 
 ### Phase 7 (Auth)
 - [ ] Can view list without logging in
