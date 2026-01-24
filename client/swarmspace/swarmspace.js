@@ -309,10 +309,6 @@ const SwarmSpaceUI = (function() {
                     <button class="entry-action-btn" data-action="delete-completion" title="Delete">×</button>
                 </div>
                 <div class="entry-body">
-                    <div class="completion-outcome">
-                        <label>Outcome:</label>
-                        <textarea class="entry-text" data-field="completion-outcome" placeholder="What was the result?">${escapeHtml(comp.outcome || '')}</textarea>
-                    </div>
                     ${renderComments(week.id, `completion:${comp.id}`, comp.comments || [])}
                 </div>
             </div>
@@ -354,16 +350,16 @@ const SwarmSpaceUI = (function() {
         let projectUI = '';
         if (week.action.type === 'project') {
             if (week.action.projectName) {
-                // Show project name badge (read-only)
+                const duration = week.action.projectDuration || '?';
                 projectUI = `
                     <div class="project-name-display">
                         <span class="project-name-label">Project:</span>
                         <span class="project-name-value">${escapeHtml(week.action.projectName)}</span>
+                        <span class="project-duration">(${duration} week${duration !== 1 ? 's' : ''})</span>
                         <button class="project-change-btn" data-action="start-project" title="Change project">✎</button>
                     </div>
                 `;
             } else {
-                // Show setup button
                 projectUI = `
                     <div class="project-info">
                         <button class="entry-action-btn" data-action="start-project">Set up project...</button>
@@ -380,7 +376,6 @@ const SwarmSpaceUI = (function() {
                 <div class="entry-body">
                     <div class="action-type-selector">${typeButtons}</div>
                     ${projectUI}
-                    <textarea class="entry-text" data-field="action" placeholder="Describe the ${week.action.type}...">${escapeHtml(week.action.text || '')}</textarea>
                     ${renderComments(week.id, 'action', week.action.comments)}
                 </div>
             </div>
@@ -426,14 +421,14 @@ const SwarmSpaceUI = (function() {
         });
 
         // Collect completions
-        const completions = new Map(); // name -> { completionWeek, hasOutcome }
+        const completions = new Map(); // name -> { completionWeek, hasComments }
         session.weeks.forEach(week => {
             (week.completions || []).forEach(comp => {
                 const name = comp.projectName.toLowerCase();
                 completions.set(name, {
                     name: comp.projectName,
                     completionWeek: week.weekNumber,
-                    hasOutcome: !!(comp.outcome && comp.outcome.trim())
+                    hasComments: !!(comp.comments && comp.comments.length > 0)
                 });
             });
         });
@@ -451,7 +446,7 @@ const SwarmSpaceUI = (function() {
             const completionWeek = completion?.completionWeek || null;
 
             let status = 'active';
-            if (completion?.hasOutcome) {
+            if (completion?.hasComments) {
                 status = 'completed';
             }
 
@@ -537,7 +532,7 @@ const SwarmSpaceUI = (function() {
         const container = document.getElementById('locationsSummary');
 
         if (session.locations.length === 0) {
-            container.innerHTML = '<div class="empty-state">No locations tracked</div>';
+            container.innerHTML = '<div class="empty-state">None</div>';
             return;
         }
 
@@ -545,10 +540,9 @@ const SwarmSpaceUI = (function() {
             <div class="summary-item" data-location-id="${l.id}">
                 <div>
                     <div class="summary-item-name">${escapeHtml(l.name)}</div>
-                    <div class="summary-item-detail">${escapeHtml(l.distance || '')}</div>
+                    <div class="summary-item-detail">${escapeHtml(l.distance || '')}${l.notes ? ' - ' + escapeHtml(l.notes) : ''}</div>
                 </div>
                 <div class="summary-item-actions">
-                    <button class="summary-item-btn" data-action="edit-location">✎</button>
                     <button class="summary-item-btn delete" data-action="delete-location">×</button>
                 </div>
             </div>
@@ -703,24 +697,6 @@ const SwarmSpaceUI = (function() {
             scheduleSave();
             return;
         }
-
-        // Action text
-        if (e.target.dataset.field === 'action') {
-            const week = SwarmSpaceStore.getWeek(weekId);
-            SwarmSpaceStore.updateWeekAction(weekId, week.action.type, e.target.value);
-            scheduleSave();
-            return;
-        }
-
-        // Completion outcome
-        if (e.target.dataset.field === 'completion-outcome') {
-            const completionEl = e.target.closest('.completion-block');
-            const completionId = completionEl.dataset.completionId;
-            SwarmSpaceStore.updateCompletionOutcome(weekId, completionId, e.target.value);
-            renderProjectsSummary();
-            scheduleSave();
-            return;
-        }
     }
 
     /**
@@ -758,11 +734,10 @@ const SwarmSpaceUI = (function() {
      */
     function handleSaveCompletion() {
         const name = document.getElementById('completionName').value.trim();
-        const outcome = document.getElementById('completionOutcome').value.trim();
 
         if (!name) return;
 
-        SwarmSpaceStore.addManualCompletion(currentCompletionWeekId, name, outcome);
+        SwarmSpaceStore.addManualCompletion(currentCompletionWeekId, name);
         closeModal('completionModal');
         rerenderWeeksPreserveState();
         renderProjectsSummary();
@@ -809,15 +784,6 @@ const SwarmSpaceUI = (function() {
         if (!item) return;
         const locationId = item.dataset.locationId;
 
-        if (e.target.dataset.action === 'edit-location') {
-            const session = SwarmSpaceStore.getSession();
-            const location = session.locations.find(l => l.id === locationId);
-            if (location) {
-                openLocationModal(location);
-            }
-            return;
-        }
-
         if (e.target.dataset.action === 'delete-location') {
             SwarmSpaceStore.deleteLocation(locationId);
             renderLocationsSummary();
@@ -856,12 +822,10 @@ const SwarmSpaceUI = (function() {
     /**
      * Open location modal
      */
-    function openLocationModal(location = null) {
-        editingLocationId = location ? location.id : null;
-        document.getElementById('locationModalTitle').textContent = location ? 'Edit Location' : 'Add Location';
-        document.getElementById('locationName').value = location ? location.name : '';
-        document.getElementById('locationDistance').value = location ? location.distance : '';
-        document.getElementById('locationNotes').value = location ? location.notes : '';
+    function openLocationModal() {
+        document.getElementById('locationName').value = '';
+        document.getElementById('locationDistance').value = '';
+        document.getElementById('locationNotes').value = '';
         openModal('locationModal');
         document.getElementById('locationName').focus();
     }
@@ -876,7 +840,7 @@ const SwarmSpaceUI = (function() {
 
         if (!name) return;
 
-        SwarmSpaceStore.upsertLocation(editingLocationId, name, distance, notes);
+        SwarmSpaceStore.upsertLocation(null, name, distance, notes);
         closeModal('locationModal');
         renderLocationsSummary();
         scheduleSave();
@@ -897,11 +861,9 @@ const SwarmSpaceUI = (function() {
         container.innerHTML = session.names.map(n => `
             <div class="summary-item" data-name-id="${n.id}">
                 <div>
-                    <div class="summary-item-name">${escapeHtml(n.name)}</div>
-                    ${n.description ? `<div class="summary-item-detail">${escapeHtml(n.description)}</div>` : ''}
+                    <div class="summary-item-name">${escapeHtml(n.name)}${n.description ? ': ' + escapeHtml(n.description) : ''}</div>
                 </div>
                 <div class="summary-item-actions">
-                    <button class="summary-item-btn" data-action="edit-name">✎</button>
                     <button class="summary-item-btn delete" data-action="delete-name">×</button>
                 </div>
             </div>
@@ -916,15 +878,6 @@ const SwarmSpaceUI = (function() {
         if (!item) return;
         const nameId = item.dataset.nameId;
 
-        if (e.target.dataset.action === 'edit-name') {
-            const session = SwarmSpaceStore.getSession();
-            const name = session.names.find(n => n.id === nameId);
-            if (name) {
-                openNameModal(name);
-            }
-            return;
-        }
-
         if (e.target.dataset.action === 'delete-name') {
             SwarmSpaceStore.deleteName(nameId);
             renderNamesSummary();
@@ -936,11 +889,9 @@ const SwarmSpaceUI = (function() {
     /**
      * Open name modal
      */
-    function openNameModal(name = null) {
-        editingNameId = name ? name.id : null;
-        document.getElementById('nameModalTitle').textContent = name ? 'Edit Name' : 'Add Name';
-        document.getElementById('nameValue').value = name ? name.name : '';
-        document.getElementById('nameDescription').value = name ? (name.description || '') : '';
+    function openNameModal() {
+        document.getElementById('nameValue').value = '';
+        document.getElementById('nameDescription').value = '';
         openModal('nameModal');
         document.getElementById('nameValue').focus();
     }
@@ -954,7 +905,7 @@ const SwarmSpaceUI = (function() {
 
         if (!name) return;
 
-        SwarmSpaceStore.upsertName(editingNameId, name, description);
+        SwarmSpaceStore.upsertName(null, name, description);
         closeModal('nameModal');
         renderNamesSummary();
         scheduleSave();

@@ -203,7 +203,7 @@ const SwarmSpaceStore = (function() {
         // Set the action on the source week
         week.action.type = 'project';
         week.action.projectName = name;
-        week.action.text = `Started project: ${name} (${duration} week${duration > 1 ? 's' : ''})`;
+        week.action.projectDuration = duration;
 
         // Add completion entry to the target week (create if needed)
         ensureWeekExists(completionWeekNum);
@@ -212,7 +212,6 @@ const SwarmSpaceStore = (function() {
             completionWeek.completions.push({
                 id: generateId(),
                 projectName: name,
-                outcome: '',
                 comments: []
             });
         }
@@ -230,37 +229,15 @@ const SwarmSpaceStore = (function() {
     }
 
     /**
-     * Update project completion outcome
-     */
-    function updateCompletionOutcome(weekId, completionId, outcome) {
-        const week = getWeek(weekId);
-        if (!week) return;
-
-        const completion = week.completions.find(c => c.id === completionId);
-        if (completion) {
-            completion.outcome = outcome;
-            // Also mark the project as completed if linked
-            if (completion.projectId) {
-                const project = session.projects.find(p => p.id === completion.projectId);
-                if (project && outcome.trim()) {
-                    project.status = 'completed';
-                }
-            }
-        }
-    }
-
-    /**
      * Add a manual completion (not linked to a project)
      */
-    function addManualCompletion(weekId, name, outcome) {
+    function addManualCompletion(weekId, name) {
         const week = getWeek(weekId);
         if (!week) return null;
 
         const completion = {
             id: generateId(),
-            projectId: null, // Manual completion, not linked to project
             projectName: name,
-            outcome: outcome || '',
             comments: []
         };
         week.completions.push(completion);
@@ -397,10 +374,7 @@ const SwarmSpaceStore = (function() {
             // Completions
             if (week.completions && week.completions.length > 0) {
                 week.completions.forEach(comp => {
-                    md += `- **Project Completed:** ${comp.projectName}\n`;
-                    if (comp.outcome) {
-                        md += `  - Outcome: ${comp.outcome}\n`;
-                    }
+                    md += `- **Completed:** ${comp.projectName}\n`;
                     if (comp.comments && comp.comments.length > 0) {
                         comp.comments.forEach(c => {
                             md += `  - ${c.text}\n`;
@@ -410,24 +384,20 @@ const SwarmSpaceStore = (function() {
             }
 
             // Action
+            const actionLabel = week.action.type.charAt(0).toUpperCase() + week.action.type.slice(1);
             if (week.action.type === 'project' && week.action.projectName) {
-                md += `- **Project:** ${week.action.projectName}\n`;
-                if (week.action.text) {
-                    md += `  - ${week.action.text}\n`;
-                }
+                const duration = week.action.projectDuration || '?';
+                md += `- **Project:** ${week.action.projectName} (${duration} week${duration !== 1 ? 's' : ''})\n`;
                 if (week.action.comments && week.action.comments.length > 0) {
                     week.action.comments.forEach(c => {
                         md += `  - ${c.text}\n`;
                     });
                 }
-            } else if (week.action.text) {
-                const actionLabel = week.action.type.charAt(0).toUpperCase() + week.action.type.slice(1);
-                md += `- **${actionLabel}:** ${week.action.text}\n`;
-                if (week.action.comments && week.action.comments.length > 0) {
-                    week.action.comments.forEach(c => {
-                        md += `  - ${c.text}\n`;
-                    });
-                }
+            } else if (week.action.comments && week.action.comments.length > 0) {
+                md += `- **${actionLabel}:**\n`;
+                week.action.comments.forEach(c => {
+                    md += `  - ${c.text}\n`;
+                });
             }
 
             md += '\n';
@@ -484,7 +454,7 @@ const SwarmSpaceStore = (function() {
                 completions.set(name, {
                     name: comp.projectName,
                     completionWeek: week.weekNumber,
-                    hasOutcome: !!(comp.outcome && comp.outcome.trim())
+                    hasComments: !!(comp.comments && comp.comments.length > 0)
                 });
             });
         });
@@ -499,7 +469,7 @@ const SwarmSpaceStore = (function() {
                 name: start?.name || completion?.name,
                 startWeek: start?.startWeek || null,
                 completionWeek: completion?.completionWeek || null,
-                status: completion?.hasOutcome ? 'completed' : 'active'
+                status: completion?.hasComments ? 'completed' : 'active'
             });
         });
 
@@ -544,7 +514,6 @@ const SwarmSpaceStore = (function() {
         setCurrentWeek,
         getCurrentWeekId,
         startProject,
-        updateCompletionOutcome,
         addManualCompletion,
         deleteCompletion,
         upsertResource,
