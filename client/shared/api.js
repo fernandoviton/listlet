@@ -32,7 +32,15 @@ function createApi(listName) {
                 throw err;
             }
 
-            if (!response.ok) throw new Error('Failed to fetch tasks');
+            if (!response.ok) {
+                // Try to get error message from response body
+                let message = `Server error (${response.status})`;
+                try {
+                    const body = await response.json();
+                    if (body.error) message = body.error;
+                } catch (e) { /* ignore parse errors */ }
+                throw new Error(message);
+            }
             return response.json();
         },
 

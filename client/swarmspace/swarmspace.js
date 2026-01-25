@@ -200,9 +200,16 @@ const SwarmSpaceUI = (function() {
             SwarmSpaceStore.setSession(data);
             renderAll();
         } catch (error) {
-            console.log('No existing session, starting fresh');
-            SwarmSpaceStore.setSession(null);
-            renderAll();
+            if (error.code === 'NOT_FOUND') {
+                // No existing session - this is fine, start fresh
+                console.log('No existing session, starting fresh');
+                SwarmSpaceStore.setSession(null);
+                renderAll();
+            } else {
+                // Actual error (500, network failure, etc.)
+                console.error('Failed to load session:', error);
+                showError(`Failed to load session: ${error.message}`);
+            }
         }
     }
 
