@@ -11,7 +11,6 @@
  * {
  *   title: string,
  *   setting: string,
- *   startingWeek: number,
  *   currentWeekId: string | null,
  *   weeks: [{ id, weekNumber, event: { text, comments: [] }, action: { type, comments: [] }, completions: [] }],
  *   resources: [{ id, name, status }],
@@ -43,7 +42,6 @@ const TEST_CONTAINER = 'test-swarmspace-isolated';
 const EMPTY_SESSION = {
     title: '',
     setting: '',
-    startingWeek: 1,
     currentWeekId: null,
     weeks: [],
     resources: [],
@@ -191,7 +189,8 @@ describe('CORS Handling', () => {
         await handler(context, req);
 
         expect(context.res.status).toBe(204);
-        expect(context.res.headers['Access-Control-Allow-Origin']).toBe('*');
+        // Default to production origin when no Origin header provided
+        expect(context.res.headers['Access-Control-Allow-Origin']).toBe('https://nice-mud-08d29c61e.1.azurestaticapps.net');
         expect(context.res.headers['Access-Control-Allow-Methods']).toBe('GET, PUT, POST, DELETE, PATCH, OPTIONS');
         expect(context.res.headers['Access-Control-Allow-Headers']).toBe('Content-Type');
     });
@@ -208,7 +207,6 @@ describe('GET - Fetch Session', () => {
         const testSession = {
             title: 'Test Session',
             setting: 'A space colony',
-            startingWeek: 1,
             currentWeekId: 'w1',
             weeks: [{ id: 'w1', weekNumber: 1, event: { text: '', comments: [] }, completions: [] }],
             resources: [],
@@ -254,7 +252,6 @@ describe('PUT - Replace Session', () => {
         const updatedSession = {
             title: 'Updated Session Title',
             setting: 'New setting',
-            startingWeek: 5,
             currentWeekId: null,
             weeks: [],
             resources: [],

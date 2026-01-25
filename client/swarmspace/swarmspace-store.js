@@ -5,7 +5,6 @@ const SwarmSpaceStore = (function() {
     const DEFAULT_SESSION = {
         title: '',
         setting: '',
-        startingWeek: 1,
         currentWeekId: null,
         weeks: [],
         resources: [],
@@ -36,7 +35,6 @@ const SwarmSpaceStore = (function() {
     function setSession(data) {
         session = data || JSON.parse(JSON.stringify(DEFAULT_SESSION));
         // Ensure all required fields exist
-        session.startingWeek = session.startingWeek || 1;
         session.weeks = session.weeks || [];
         session.resources = session.resources || [];
         session.locations = session.locations || [];
@@ -46,10 +44,9 @@ const SwarmSpaceStore = (function() {
     /**
      * Update session metadata
      */
-    function updateMeta(title, setting, startingWeek) {
+    function updateMeta(title, setting) {
         session.title = title;
         session.setting = setting;
-        session.startingWeek = startingWeek || 1;
     }
 
     // ============ WEEK OPERATIONS ============
@@ -58,8 +55,12 @@ const SwarmSpaceStore = (function() {
      * Add a new week
      */
     function addWeek() {
-        const startingWeek = session.startingWeek || 1;
-        const weekNum = startingWeek + session.weeks.length;
+        // If weeks exist, new week is last week's number + 1; otherwise default to 1
+        let weekNum = 1;
+        if (session.weeks.length > 0) {
+            const lastWeek = session.weeks[session.weeks.length - 1];
+            weekNum = (lastWeek.weekNumber || 1) + 1;
+        }
         const week = {
             id: generateId(),
             weekNumber: weekNum,
@@ -157,11 +158,6 @@ const SwarmSpaceStore = (function() {
         const idx = session.weeks.findIndex(w => w.id === weekId);
         if (idx !== -1) {
             session.weeks.splice(idx, 1);
-            // Renumber remaining weeks based on startingWeek
-            const startingWeek = session.startingWeek || 1;
-            session.weeks.forEach((w, i) => {
-                w.weekNumber = startingWeek + i;
-            });
             // Clear current if deleted
             if (session.currentWeekId === weekId) {
                 session.currentWeekId = null;

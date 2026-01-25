@@ -94,7 +94,6 @@ const SwarmSpaceUI = (function() {
         // Session metadata
         document.getElementById('sessionTitle').addEventListener('input', debounce(handleMetaChange, 500));
         document.getElementById('sessionSetting').addEventListener('input', debounce(handleMetaChange, 500));
-        document.getElementById('startingWeek').addEventListener('input', debounce(handleStartingWeekChange, 500));
 
         // Add week button
         document.getElementById('addWeekBtn').addEventListener('click', handleAddWeek);
@@ -248,10 +247,6 @@ const SwarmSpaceUI = (function() {
         // Metadata
         document.getElementById('sessionTitle').value = session.title || '';
         document.getElementById('sessionSetting').value = session.setting || '';
-        document.getElementById('startingWeek').value = session.startingWeek || 1;
-
-        // Restrict startingWeek if multiple weeks exist
-        updateStartingWeekRestriction();
 
         // Weeks
         renderWeeks();
@@ -261,21 +256,6 @@ const SwarmSpaceUI = (function() {
         renderResourcesSummary();
         renderLocationsSummary();
         renderNamesSummary();
-    }
-
-    /**
-     * Update startingWeek input restriction based on weeks count
-     */
-    function updateStartingWeekRestriction() {
-        const session = SwarmSpaceStore.getSession();
-        const startingWeekInput = document.getElementById('startingWeek');
-        if (session.weeks.length > 1) {
-            startingWeekInput.disabled = true;
-            startingWeekInput.title = 'Cannot change starting week after multiple weeks exist';
-        } else {
-            startingWeekInput.disabled = false;
-            startingWeekInput.title = '';
-        }
     }
 
     /**
@@ -308,7 +288,8 @@ const SwarmSpaceUI = (function() {
         container.innerHTML = session.weeks.map((week, index) => {
             const isCurrent = week.id === currentWeekId;
             const isBeforeCurrent = currentWeekIndex >= 0 && index < currentWeekIndex;
-            return renderWeek(week, !expandSet.has(week.id), isCurrent, isBeforeCurrent);
+            const isLastWeek = index === session.weeks.length - 1;
+            return renderWeek(week, !expandSet.has(week.id), isCurrent, isBeforeCurrent, isLastWeek);
         }).join('');
     }
 
@@ -322,7 +303,7 @@ const SwarmSpaceUI = (function() {
     /**
      * Render a single week
      */
-    function renderWeek(week, collapsed = false, isCurrent = false, isBeforeCurrent = false) {
+    function renderWeek(week, collapsed = false, isCurrent = false, isBeforeCurrent = false, isLastWeek = false) {
         // Weeks before current are considered complete
         const isComplete = isBeforeCurrent;
         const statusClass = isComplete ? 'week-complete' : (isCurrent ? 'week-current' : '');
@@ -330,12 +311,17 @@ const SwarmSpaceUI = (function() {
         const currentLabel = isCurrent ? '<span class="current-label">Current</span>' : '';
         const makeCurrentBtn = !isCurrent ? '<button class="make-current-btn" data-action="make-current">Make Current</button>' : '';
 
+        // Week number: editable for last week only
+        const weekNumberHtml = isLastWeek
+            ? `Week <input type="number" class="week-number-input" data-field="weekNumber" value="${week.weekNumber}" min="1" onclick="event.stopPropagation()">${statusLabel}`
+            : `Week ${week.weekNumber}${statusLabel}`;
+
         return `
             <div class="week-section${collapsed ? ' collapsed' : ''} ${statusClass}" data-week-id="${week.id}">
                 <div class="week-header">
                     <span class="week-title">
                         <span class="week-toggle">▼</span>
-                        Week ${week.weekNumber}${statusLabel}
+                        ${weekNumberHtml}
                         ${currentLabel}
                     </span>
                     <div class="week-header-actions">
@@ -630,31 +616,6 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle starting week change - renumbers all weeks (atomic PATCH)
-     * Only allowed when weeks.length <= 1
-     */
-    async function handleStartingWeekChange() {
-        const startingWeekInput = document.getElementById('startingWeek');
-        // Skip if disabled (multiple weeks exist)
-        if (startingWeekInput.disabled) return;
-
-        const startingWeek = parseInt(startingWeekInput.value, 10) || 1;
-        const session = SwarmSpaceStore.getSession();
-
-        // Don't update if value hasn't changed
-        if (startingWeek === session.startingWeek) return;
-
-        try {
-            const updatedDoc = await api.patchItem('startingWeek', startingWeek);
-            SwarmSpaceStore.setSession(updatedDoc);
-            rerenderWeeksPreserveState();
-            SwarmSpaceSync.resetActivity();
-        } catch (error) {
-            showError('Failed to update starting week. Please try again.', error);
-        }
-    }
-
-    /**
      * Handle add week (atomic operation)
      */
     async function handleAddWeek() {
@@ -822,10 +783,40 @@ const SwarmSpaceUI = (function() {
         }
     }, 500);
 
+    /**
+     * Debounced handler for week number changes (last week only)
+     */
+    const debouncedWeekNumberPatch = debounce(async (weekIndex, value) => {
+        try {
+            const updatedDoc = await api.patchItem(`weeks.${weekIndex}.weekNumber`, value);
+            SwarmSpaceStore.setSession(updatedDoc);
+            renderProjectsSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to save week number. Please try again.', error);
+        }
+    }, 500);
+
     function handleWeeksInput(e) {
         const weekEl = e.target.closest('.week-section');
         if (!weekEl) return;
         const weekId = weekEl.dataset.weekId;
+
+        // Week number change (only last week is editable)
+        if (e.target.dataset.field === 'weekNumber') {
+            const session = SwarmSpaceStore.getSession();
+            const weekIndex = getWeekIndex(weekId);
+            if (weekIndex === -1) return;
+            // Only allow editing last week
+            if (weekIndex !== session.weeks.length - 1) return;
+            const newWeekNumber = parseInt(e.target.value, 10);
+            if (isNaN(newWeekNumber) || newWeekNumber < 1) return;
+            // Update local state immediately
+            session.weeks[weekIndex].weekNumber = newWeekNumber;
+            // Debounced patch to server
+            debouncedWeekNumberPatch(weekIndex, newWeekNumber);
+            return;
+        }
 
         // Event text (atomic PATCH)
         if (e.target.dataset.field === 'event') {
@@ -898,10 +889,9 @@ const SwarmSpaceUI = (function() {
             session = SwarmSpaceStore.getSession();
 
             // 2. Create missing weeks up to completion week (using POST for each)
-            const startingWeek = session.startingWeek || 1;
-            const neededWeeksCount = completionWeekNum - startingWeek + 1;
-
-            while (session.weeks.length < neededWeeksCount) {
+            // Keep adding weeks until the last week's weekNumber reaches completionWeekNum
+            while (session.weeks.length === 0 ||
+                   session.weeks[session.weeks.length - 1].weekNumber < completionWeekNum) {
                 const newWeek = {
                     id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
                     event: { text: '', comments: [] },

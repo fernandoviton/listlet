@@ -47,22 +47,6 @@
     min-height: 60px;
 }
 
-.starting-week-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.starting-week-row label {
-    color: #666;
-    font-size: 0.9rem;
-}
-
-.starting-week-input {
-    width: 80px;
-    padding: 8px 12px;
-}
-
 /* Week sections */
 .week-section {
     background: white;
@@ -122,6 +106,32 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+/* Editable week number input (last week only) */
+.week-number-input {
+    width: 60px;
+    padding: 2px 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    color: inherit;
+}
+
+.week-number-input:focus {
+    outline: none;
+    border-color: #1976d2;
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+.week-section.week-current .week-number-input {
+    color: #e65100;
+}
+
+.week-section.week-complete .week-number-input {
+    color: #2e7d32;
 }
 
 .week-header-actions {

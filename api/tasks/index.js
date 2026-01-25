@@ -14,10 +14,25 @@ function navigateToPath(obj, path) {
 }
 
 module.exports = async function (context, req) {
+    // Allowed CORS origins
+    const allowedOrigins = [
+        'https://nice-mud-08d29c61e.1.azurestaticapps.net',
+        'http://localhost:8000',
+        'http://localhost:8080',
+        'http://localhost:3000',
+        'http://127.0.0.1:8000',
+        'http://127.0.0.1:8080',
+        'http://127.0.0.1:3000'
+    ];
+
+    const reqHeaders = req.headers || {};
+    const origin = reqHeaders['origin'] || reqHeaders['Origin'] || '';
+    const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+
     // CORS headers
     const headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, PATCH, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
     };
@@ -94,8 +109,13 @@ module.exports = async function (context, req) {
 
             // Server-side week number calculation to prevent duplicates from concurrent adds
             if (path === 'weeks' && value && typeof value === 'object') {
-                const startingWeek = data.startingWeek || 1;
-                value.weekNumber = startingWeek + target.length;
+                // If weeks exist, new week is last week's number + 1; otherwise default to 1
+                if (target.length > 0) {
+                    const lastWeek = target[target.length - 1];
+                    value.weekNumber = (lastWeek.weekNumber || 1) + 1;
+                } else {
+                    value.weekNumber = value.weekNumber || 1;
+                }
             }
 
             target.push(value);
