@@ -1,4 +1,5 @@
 const CONFIG = {
-    API_BASE: '/api/tasks',  // Relative path for SWA
+    API_BASE_TASKS: '/api/store/tasks',      // Task lists
+    API_BASE_SWARM: '/api/store/swarm',      // SwarmSpace sessions
     DEFAULT_LIST_NAME: 'tasks'
 };

@@ -1,12 +1,12 @@
 // Shared API utilities
 
 /**
- * Create API helper for a specific list
- * @param {string} listName - Name of the list
+ * Create API helper for a specific list/session
+ * @param {string} listName - Name of the list or session
+ * @param {string} baseUrl - API base URL (e.g., CONFIG.API_BASE_TASKS)
  * @returns {Object} - API methods
  */
-function createApi(listName) {
-    const baseUrl = CONFIG.API_BASE;
+function createApi(listName, baseUrl) {
     const isMock = baseUrl === 'mock';
 
     return {

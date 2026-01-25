@@ -22,7 +22,7 @@ const SwarmSpaceUI = (function() {
      * Initialize the UI
      */
     async function init(listName) {
-        api = createApi(listName);
+        api = createApi(listName, CONFIG.API_BASE_SWARM);
 
         // Cache common elements
         savingIndicator = document.getElementById('savingIndicator');

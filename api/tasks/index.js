@@ -28,11 +28,16 @@ module.exports = async function (context, req) {
         return;
     }
 
-    const listName = context.bindingData.listName;
-    const blobName = `${listName}.json`;
+    const containerName = context.bindingData.container;
+    const blobName = `${context.bindingData.name}.json`;
 
     const sasUrl = process.env.BLOB_SAS_URL;
-    const containerName = process.env.BLOB_CONTAINER_NAME || 'tasklists';
+
+    // Validate container name (alphanumeric and hyphens only, 3-63 chars)
+    if (!containerName || !/^[a-z0-9-]{3,63}$/.test(containerName)) {
+        context.res = { status: 400, headers, body: JSON.stringify({ error: 'Invalid container name' }) };
+        return;
+    }
 
     // Validate env vars
     if (!sasUrl) {

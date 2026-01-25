@@ -8,14 +8,14 @@ Tasks are persisted via an Azure Static Web App with a managed API backed by Azu
 ## Architecture
 
 ```
-┌─────────────────────┐     ┌─────────────────────┐
-│  Azure Static Web   │     │  Azure Blob Storage │
-│  App (SPA + API)    │────▶│  {listName}.json    │
-│  /api/tasks/{list}  │     │                     │
-└─────────────────────┘     └─────────────────────┘
+┌─────────────────────┐     ┌─────────────────────────────┐
+│  Azure Static Web   │     │  Azure Blob Storage         │
+│  App (SPA + API)    │────▶│  tasks container: lists     │
+│  /api/store/{c}/{n} │     │  swarm container: sessions  │
+└─────────────────────┘     └─────────────────────────────┘
 
-URL: /tasks/?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.json
-URL: /swarmspace/?list=game1  →  API: /api/tasks/game1  →  Blob: game1.json
+URL: /tasks/?list=grocery     →  API: /api/store/tasks/grocery  →  tasks/grocery.json
+URL: /swarmspace/?list=game1  →  API: /api/store/swarm/game1    →  swarm/game1.json
 ```
 
 ## URL Structure
@@ -118,8 +118,9 @@ az group create --name $RG --location $LOCATION
 # Create storage account (name must be globally unique, lowercase, no hyphens)
 az storage account create --name $APP_NAME --resource-group $RG --location $LOCATION --sku Standard_LRS
 
-# Create blob container for task data
-az storage container create --name tasklists --account-name $APP_NAME --auth-mode login
+# Create blob containers
+az storage container create --name tasks --account-name $APP_NAME --auth-mode login
+az storage container create --name swarm --account-name $APP_NAME --auth-mode login
 
 # Create Static Web App (includes managed API)
 az staticwebapp create --name $APP_NAME --resource-group $RG --location $LOCATION --sku Free
@@ -142,11 +143,10 @@ SAS_URL="https://${APP_NAME}.blob.core.windows.net?${SAS}"
 
 # Set app settings (use stop-parsing in PowerShell to handle ampersands)
 # PowerShell:
-az --% staticwebapp appsettings set --name <app-name> --resource-group <rg> --setting-names "BLOB_SAS_URL=<sas-url>" "BLOB_CONTAINER_NAME=tasklists"
+az --% staticwebapp appsettings set --name <app-name> --resource-group <rg> --setting-names "BLOB_SAS_URL=<sas-url>"
 
 # Bash:
-az staticwebapp appsettings set --name $APP_NAME --resource-group $RG \
-  --setting-names "BLOB_SAS_URL=$SAS_URL" "BLOB_CONTAINER_NAME=tasklists"
+az staticwebapp appsettings set --name $APP_NAME --resource-group $RG --setting-names "BLOB_SAS_URL=$SAS_URL"
 ```
 
 ### 3. Set Up GitHub Deployment
@@ -219,15 +219,21 @@ cd api && npm test
 ## Managing Data via CLI
 
 ```bash
-# List blobs
-az storage blob list --container-name tasklists --account-name $APP_NAME --auth-mode login --query "[].name" -o tsv
+# List task lists
+az storage blob list --container-name tasks --account-name $APP_NAME --auth-mode login --query "[].name" -o tsv
 
-# Download a list
-az storage blob download --container-name tasklists --account-name $APP_NAME --name "tasks.json" --file tasks.json --auth-mode login
+# List swarm sessions
+az storage blob list --container-name swarm --account-name $APP_NAME --auth-mode login --query "[].name" -o tsv
 
-# Upload/update a list
-az storage blob upload --container-name tasklists --account-name $APP_NAME --name "tasks.json" --file tasks.json --auth-mode login --overwrite
+# Download a task list
+az storage blob download --container-name tasks --account-name $APP_NAME --name "grocery.json" --file grocery.json --auth-mode login
 
-# Delete a list
-az storage blob delete --container-name tasklists --account-name $APP_NAME --name "tasks.json" --auth-mode login
+# Download a swarm session
+az storage blob download --container-name swarm --account-name $APP_NAME --name "game1.json" --file game1.json --auth-mode login
+
+# Upload/update
+az storage blob upload --container-name tasks --account-name $APP_NAME --name "grocery.json" --file grocery.json --auth-mode login --overwrite
+
+# Delete
+az storage blob delete --container-name tasks --account-name $APP_NAME --name "grocery.json" --auth-mode login
 ```

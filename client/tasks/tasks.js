@@ -82,7 +82,7 @@ const TasksUI = (function() {
      */
     async function init(listName) {
         // Create API instance
-        api = createApi(listName);
+        api = createApi(listName, CONFIG.API_BASE_TASKS);
 
         // Cache DOM elements
         taskListEl = document.getElementById('taskList');

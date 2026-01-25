@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get", "put", "post", "delete", "options"],
-      "route": "tasks/{listName}"
+      "route": "store/{container}/{name}"
     },
     {
       "type": "http",
