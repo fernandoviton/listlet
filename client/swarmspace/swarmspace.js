@@ -1110,11 +1110,18 @@ const SwarmSpaceUI = (function() {
 
     /**
      * Populate group datalist with existing groups
+     * @param {string} datalistId - The datalist element ID
+     * @param {boolean} includeUngrouped - Whether to include "Ungrouped" option (for move modal)
      */
-    function populateGroupDatalist(datalistId) {
+    function populateGroupDatalist(datalistId, includeUngrouped = false) {
         const datalist = document.getElementById(datalistId);
         const groups = getNameGroups();
-        datalist.innerHTML = groups.map(g => `<option value="${escapeHtml(g)}">`).join('');
+        let options = '';
+        if (includeUngrouped) {
+            options += '<option value="Ungrouped">';
+        }
+        options += groups.map(g => `<option value="${escapeHtml(g)}">`).join('');
+        datalist.innerHTML = options;
     }
 
     /**
@@ -1276,6 +1283,7 @@ const SwarmSpaceUI = (function() {
 
     // State for group modal
     let currentGroupNameId = null;
+    let currentGroupOriginalValue = '';
 
     /**
      * Open group modal to change a name's group
@@ -1284,9 +1292,14 @@ const SwarmSpaceUI = (function() {
         currentGroupNameId = nameId;
         const session = SwarmSpaceStore.getSession();
         const nameEntry = session.names.find(n => n.id === nameId);
+        currentGroupOriginalValue = nameEntry?.group || '';
 
-        document.getElementById('groupValue').value = nameEntry?.group || '';
-        populateGroupDatalist('groupValueList');
+        // Clear input so datalist shows all options (browser filters datalist to match input)
+        document.getElementById('groupValue').value = '';
+        document.getElementById('groupValue').placeholder = currentGroupOriginalValue
+            ? `Current: ${currentGroupOriginalValue}`
+            : 'Enter group name...';
+        populateGroupDatalist('groupValueList', true); // Include "Ungrouped" option
         openModal('groupModal');
         document.getElementById('groupValue').focus();
     }
@@ -1295,11 +1308,29 @@ const SwarmSpaceUI = (function() {
      * Handle save group (PATCH operation to change group only)
      */
     async function handleSaveGroup() {
-        const group = document.getElementById('groupValue').value.trim();
+        const inputValue = document.getElementById('groupValue').value.trim();
 
         closeModal('groupModal');
 
         if (!currentGroupNameId) return;
+
+        // Handle special "Ungrouped" value - clears the group
+        // If input is empty and there was an original value, keep the original (user just clicked Move without typing)
+        // If input is empty and no original value, nothing to do
+        // If input has a value, use that new value
+        let newGroup;
+        if (inputValue.toLowerCase() === 'ungrouped') {
+            newGroup = ''; // Clear the group
+        } else {
+            newGroup = inputValue || currentGroupOriginalValue;
+        }
+
+        // If the group hasn't changed, do nothing
+        if (newGroup === currentGroupOriginalValue) {
+            currentGroupNameId = null;
+            currentGroupOriginalValue = '';
+            return;
+        }
 
         const session = SwarmSpaceStore.getSession();
         const nameIndex = session.names.findIndex(n => n.id === currentGroupNameId);
@@ -1307,7 +1338,7 @@ const SwarmSpaceUI = (function() {
 
         try {
             // Use PATCH to update only the group field
-            const updatedDoc = await api.patchItem(`names.${nameIndex}.group`, group || '');
+            const updatedDoc = await api.patchItem(`names.${nameIndex}.group`, newGroup);
             SwarmSpaceStore.setSession(updatedDoc);
             renderNamesSummary();
             SwarmSpaceSync.resetActivity();
@@ -1316,6 +1347,7 @@ const SwarmSpaceUI = (function() {
         }
 
         currentGroupNameId = null;
+        currentGroupOriginalValue = '';
     }
 
     /**
