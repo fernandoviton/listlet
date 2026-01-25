@@ -108,7 +108,7 @@
     gap: 8px;
 }
 
-/* Editable week number input (last week only) */
+/* Editable week number input (only when it's the single week) */
 .week-number-input {
     width: 60px;
     padding: 2px 6px;

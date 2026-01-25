@@ -285,11 +285,14 @@ const SwarmSpaceUI = (function() {
         // Normalize to array
         const expandSet = new Set(Array.isArray(expandWeekIds) ? expandWeekIds : (expandWeekIds ? [expandWeekIds] : []));
 
+        const totalWeeks = session.weeks.length;
         container.innerHTML = session.weeks.map((week, index) => {
             const isCurrent = week.id === currentWeekId;
             const isBeforeCurrent = currentWeekIndex >= 0 && index < currentWeekIndex;
-            const isLastWeek = index === session.weeks.length - 1;
-            return renderWeek(week, !expandSet.has(week.id), isCurrent, isBeforeCurrent, isLastWeek);
+            const isLastWeek = index === totalWeeks - 1;
+            // Week number only editable if it's the only week (prevents sync issues)
+            const isWeekNumberEditable = isLastWeek && totalWeeks === 1;
+            return renderWeek(week, !expandSet.has(week.id), isCurrent, isBeforeCurrent, isWeekNumberEditable);
         }).join('');
     }
 
@@ -303,7 +306,7 @@ const SwarmSpaceUI = (function() {
     /**
      * Render a single week
      */
-    function renderWeek(week, collapsed = false, isCurrent = false, isBeforeCurrent = false, isLastWeek = false) {
+    function renderWeek(week, collapsed = false, isCurrent = false, isBeforeCurrent = false, isWeekNumberEditable = false) {
         // Weeks before current are considered complete
         const isComplete = isBeforeCurrent;
         const statusClass = isComplete ? 'week-complete' : (isCurrent ? 'week-current' : '');
@@ -311,8 +314,8 @@ const SwarmSpaceUI = (function() {
         const currentLabel = isCurrent ? '<span class="current-label">Current</span>' : '';
         const makeCurrentBtn = !isCurrent ? '<button class="make-current-btn" data-action="make-current">Make Current</button>' : '';
 
-        // Week number: editable for last week only
-        const weekNumberHtml = isLastWeek
+        // Week number: editable only when it's the single week (prevents sync issues)
+        const weekNumberHtml = isWeekNumberEditable
             ? `Week <input type="number" class="week-number-input" data-field="weekNumber" value="${week.weekNumber}" min="1" onclick="event.stopPropagation()">${statusLabel}`
             : `Week ${week.weekNumber}${statusLabel}`;
 
@@ -802,13 +805,13 @@ const SwarmSpaceUI = (function() {
         if (!weekEl) return;
         const weekId = weekEl.dataset.weekId;
 
-        // Week number change (only last week is editable)
+        // Week number change (only editable when it's the single week)
         if (e.target.dataset.field === 'weekNumber') {
             const session = SwarmSpaceStore.getSession();
             const weekIndex = getWeekIndex(weekId);
             if (weekIndex === -1) return;
-            // Only allow editing last week
-            if (weekIndex !== session.weeks.length - 1) return;
+            // Only allow editing if it's the only week
+            if (session.weeks.length !== 1) return;
             const newWeekNumber = parseInt(e.target.value, 10);
             if (isNaN(newWeekNumber) || newWeekNumber < 1) return;
             // Update local state immediately
