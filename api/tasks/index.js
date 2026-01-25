@@ -91,6 +91,13 @@ module.exports = async function (context, req) {
                 context.res = { status: 400, headers, body: JSON.stringify({ error: 'Path must point to array' }) };
                 return;
             }
+
+            // Server-side week number calculation to prevent duplicates from concurrent adds
+            if (path === 'weeks' && value && typeof value === 'object') {
+                const startingWeek = data.startingWeek || 1;
+                value.weekNumber = startingWeek + target.length;
+            }
+
             target.push(value);
 
             // PUT with If-Match (optimistic locking)

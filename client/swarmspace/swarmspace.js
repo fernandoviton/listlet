@@ -657,14 +657,9 @@ const SwarmSpaceUI = (function() {
      * Handle add week (atomic operation)
      */
     async function handleAddWeek() {
-        const session = SwarmSpaceStore.getSession();
-        const startingWeek = session.startingWeek || 1;
-        const weekNum = startingWeek + session.weeks.length;
-
-        // Create the new week object
+        // Create the new week object (server calculates weekNumber to prevent duplicates)
         const newWeek = {
             id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
-            weekNumber: weekNum,
             event: { text: '', comments: [] },
             action: { type: 'discussion', text: '', comments: [] },
             completions: []
