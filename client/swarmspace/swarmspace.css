@@ -587,3 +587,55 @@
     opacity: 1;
     color: #e65100;
 }
+
+/* Sync status indicator */
+.sync-status {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    background: #4caf50;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    z-index: 100;
+    transition: background 0.2s;
+}
+
+.sync-status:hover {
+    background: #43a047;
+}
+
+.sync-status.paused {
+    background: #ff9800;
+}
+
+.sync-status.paused:hover {
+    background: #f57c00;
+}
+
+/* Error display */
+.error-display {
+    position: fixed;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    background: #d32f2f;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.error-display.visible {
+    opacity: 1;
+    visibility: visible;
+}

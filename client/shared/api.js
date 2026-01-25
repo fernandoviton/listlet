@@ -67,6 +67,91 @@ function createApi(listName) {
             if (!putResponse.ok) throw new Error('Failed to save');
 
             return serverTasks;
+        },
+
+        /**
+         * Atomically append an item to an array at a given path
+         * Uses ETag-based optimistic locking with automatic retry on conflict
+         * @param {string} path - Dot-separated path to array (e.g., 'weeks.0.event.comments')
+         * @param {*} value - Value to append
+         * @param {number} maxRetries - Maximum retry attempts on conflict
+         * @returns {Promise<Object>} - Full document after update
+         */
+        async appendItem(path, value, maxRetries = 3) {
+            if (isMock) {
+                // For mock, simulate atomic append
+                const current = JSON.parse(localStorage.getItem(`mockTasks_${listName}`) || '{}');
+                const target = path.split('.').reduce((obj, key) => {
+                    return /^\d+$/.test(key) ? obj[parseInt(key)] : obj[key];
+                }, current);
+                if (Array.isArray(target)) {
+                    target.push(value);
+                }
+                localStorage.setItem(`mockTasks_${listName}`, JSON.stringify(current));
+                return current;
+            }
+
+            for (let i = 0; i < maxRetries; i++) {
+                const response = await fetch(`${baseUrl}/${listName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, value })
+                });
+
+                if (response.status === 409) {
+                    // Conflict - wait with exponential backoff and retry
+                    await new Promise(r => setTimeout(r, 100 * (i + 1)));
+                    continue;
+                }
+
+                if (!response.ok) throw new Error('Failed to append item');
+                const result = await response.json();
+                return result.data; // Full document for sync
+            }
+            throw new Error('Max retries exceeded');
+        },
+
+        /**
+         * Atomically delete an item from an array at a given path by id
+         * Uses ETag-based optimistic locking with automatic retry on conflict
+         * @param {string} path - Dot-separated path to array (e.g., 'resources')
+         * @param {string} id - ID of item to delete
+         * @param {number} maxRetries - Maximum retry attempts on conflict
+         * @returns {Promise<Object>} - Full document after update
+         */
+        async deleteItem(path, id, maxRetries = 3) {
+            if (isMock) {
+                // For mock, simulate atomic delete
+                const current = JSON.parse(localStorage.getItem(`mockTasks_${listName}`) || '{}');
+                const target = path.split('.').reduce((obj, key) => {
+                    return /^\d+$/.test(key) ? obj[parseInt(key)] : obj[key];
+                }, current);
+                if (Array.isArray(target)) {
+                    const index = target.findIndex(item => item.id === id);
+                    if (index !== -1) target.splice(index, 1);
+                }
+                localStorage.setItem(`mockTasks_${listName}`, JSON.stringify(current));
+                return current;
+            }
+
+            for (let i = 0; i < maxRetries; i++) {
+                const response = await fetch(`${baseUrl}/${listName}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, id })
+                });
+
+                if (response.status === 409) {
+                    // Conflict - wait with exponential backoff and retry
+                    await new Promise(r => setTimeout(r, 100 * (i + 1)));
+                    continue;
+                }
+
+                if (!response.ok) throw new Error('Failed to delete item');
+                const result = await response.json();
+                return result.data; // Full document for sync
+            }
+            throw new Error('Max retries exceeded');
         }
     };
 }

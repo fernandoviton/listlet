@@ -32,6 +32,46 @@ const SwarmSpaceUI = (function() {
 
         // Load session data
         await loadSession();
+
+        // Initialize sync polling for multi-user support
+        SwarmSpaceSync.init(api, handleSyncRefresh);
+    }
+
+    /**
+     * Handle sync refresh from server (callback for SwarmSpaceSync)
+     */
+    function handleSyncRefresh(data) {
+        SwarmSpaceStore.setSession(data);
+        rerenderWeeksPreserveState();
+        renderProjectsSummary();
+        renderResourcesSummary();
+        renderLocationsSummary();
+        renderNamesSummary();
+    }
+
+    /**
+     * Manual refresh for UI (exposed for sync indicator click)
+     */
+    function manualRefresh() {
+        SwarmSpaceSync.manualRefresh();
+    }
+
+    /**
+     * Show error message to user and log to console
+     * @param {string} message - Error message to display
+     * @param {Error} error - Original error for debugging
+     */
+    function showError(message, error) {
+        console.error('SwarmSpace error:', message, error);
+        const errorEl = document.getElementById('errorDisplay');
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.classList.add('visible');
+            setTimeout(() => errorEl.classList.remove('visible'), 5000);
+        } else {
+            // Fallback to alert if error element doesn't exist
+            alert(message);
+        }
     }
 
     /**
@@ -580,13 +620,31 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle add week
+     * Handle add week (atomic operation)
      */
-    function handleAddWeek() {
-        const newWeek = SwarmSpaceStore.addWeek();
-        renderWeeks(newWeek.id); // Keep new week expanded
-        renderProjectsSummary();
-        scheduleSave();
+    async function handleAddWeek() {
+        const session = SwarmSpaceStore.getSession();
+        const startingWeek = session.startingWeek || 1;
+        const weekNum = startingWeek + session.weeks.length;
+
+        // Create the new week object
+        const newWeek = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+            weekNumber: weekNum,
+            event: { text: '', comments: [] },
+            action: { type: 'discussion', text: '', comments: [] },
+            completions: []
+        };
+
+        try {
+            const updatedDoc = await api.appendItem('weeks', newWeek);
+            SwarmSpaceStore.setSession(updatedDoc);
+            renderWeeks(newWeek.id); // Keep new week expanded
+            renderProjectsSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to add week. Please try again.', error);
+        }
     }
 
     /**
@@ -649,15 +707,25 @@ const SwarmSpaceUI = (function() {
             return;
         }
 
-        // Delete completion
+        // Delete completion (atomic operation)
         if (e.target.dataset.action === 'delete-completion') {
             const completionEl = e.target.closest('.completion-block');
             const completionId = completionEl.dataset.completionId;
             if (confirm('Delete this completion?')) {
-                SwarmSpaceStore.deleteCompletion(weekId, completionId);
-                rerenderWeeksPreserveState();
-                renderProjectsSummary();
-                scheduleSave();
+                const weekIndex = getWeekIndex(weekId);
+                if (weekIndex === -1) return;
+
+                (async () => {
+                    try {
+                        const updatedDoc = await api.deleteItem(`weeks.${weekIndex}.completions`, completionId);
+                        SwarmSpaceStore.setSession(updatedDoc);
+                        rerenderWeeksPreserveState();
+                        renderProjectsSummary();
+                        SwarmSpaceSync.resetActivity();
+                    } catch (error) {
+                        showError('Failed to delete completion. Please try again.', error);
+                    }
+                })();
             }
             return;
         }
@@ -671,14 +739,27 @@ const SwarmSpaceUI = (function() {
             return;
         }
 
-        // Delete comment
+        // Delete comment (atomic operation)
         if (e.target.dataset.action === 'delete-comment') {
             const commentEl = e.target.closest('.comment');
             const commentId = commentEl.dataset.commentId;
             const target = e.target.dataset.target;
-            SwarmSpaceStore.deleteComment(weekId, target, commentId);
-            rerenderWeeksPreserveState();
-            scheduleSave();
+            const weekIndex = getWeekIndex(weekId);
+
+            if (weekIndex === -1) return;
+
+            const path = getCommentPath(weekIndex, target);
+
+            (async () => {
+                try {
+                    const updatedDoc = await api.deleteItem(path, commentId);
+                    SwarmSpaceStore.setSession(updatedDoc);
+                    rerenderWeeksPreserveState();
+                    SwarmSpaceSync.resetActivity();
+                } catch (error) {
+                    showError('Failed to delete comment. Please try again.', error);
+                }
+            })();
             return;
         }
     }
@@ -700,17 +781,31 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save comment
+     * Handle save comment (atomic operation)
      */
-    function handleSaveComment() {
+    async function handleSaveComment() {
         const text = document.getElementById('commentText').value.trim();
-
         if (!text) return;
 
-        SwarmSpaceStore.addComment(currentCommentTarget.weekId, currentCommentTarget.target, text);
+        const weekIndex = getWeekIndex(currentCommentTarget.weekId);
+        if (weekIndex === -1) return;
+
+        const comment = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+            text: text
+        };
+
+        const path = getCommentPath(weekIndex, currentCommentTarget.target);
         closeModal('commentModal');
-        rerenderWeeksPreserveState();
-        scheduleSave();
+
+        try {
+            const updatedDoc = await api.appendItem(path, comment);
+            SwarmSpaceStore.setSession(updatedDoc);
+            rerenderWeeksPreserveState();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to add comment. Please try again.', error);
+        }
     }
 
     /**
@@ -730,18 +825,32 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save completion (manual)
+     * Handle save completion (atomic operation)
      */
-    function handleSaveCompletion() {
+    async function handleSaveCompletion() {
         const name = document.getElementById('completionName').value.trim();
-
         if (!name) return;
 
-        SwarmSpaceStore.addManualCompletion(currentCompletionWeekId, name);
+        const weekIndex = getWeekIndex(currentCompletionWeekId);
+        if (weekIndex === -1) return;
+
+        const completion = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+            projectName: name,
+            comments: []
+        };
+
         closeModal('completionModal');
-        rerenderWeeksPreserveState();
-        renderProjectsSummary();
-        scheduleSave();
+
+        try {
+            const updatedDoc = await api.appendItem(`weeks.${weekIndex}.completions`, completion);
+            SwarmSpaceStore.setSession(updatedDoc);
+            rerenderWeeksPreserveState();
+            renderProjectsSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to add completion. Please try again.', error);
+        }
     }
 
     /**
@@ -769,9 +878,16 @@ const SwarmSpaceUI = (function() {
         }
 
         if (e.target.dataset.action === 'delete-resource') {
-            SwarmSpaceStore.deleteResource(resourceId);
-            renderResourcesSummary();
-            scheduleSave();
+            (async () => {
+                try {
+                    const updatedDoc = await api.deleteItem('resources', resourceId);
+                    SwarmSpaceStore.setSession(updatedDoc);
+                    renderResourcesSummary();
+                    SwarmSpaceSync.resetActivity();
+                } catch (error) {
+                    showError('Failed to delete resource. Please try again.', error);
+                }
+            })();
             return;
         }
     }
@@ -785,9 +901,16 @@ const SwarmSpaceUI = (function() {
         const locationId = item.dataset.locationId;
 
         if (e.target.dataset.action === 'delete-location') {
-            SwarmSpaceStore.deleteLocation(locationId);
-            renderLocationsSummary();
-            scheduleSave();
+            (async () => {
+                try {
+                    const updatedDoc = await api.deleteItem('locations', locationId);
+                    SwarmSpaceStore.setSession(updatedDoc);
+                    renderLocationsSummary();
+                    SwarmSpaceSync.resetActivity();
+                } catch (error) {
+                    showError('Failed to delete location. Please try again.', error);
+                }
+            })();
             return;
         }
     }
@@ -806,15 +929,35 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save resource
+     * Handle save resource (atomic operation for new resources)
      */
-    function handleSaveResource() {
+    async function handleSaveResource() {
         const name = document.getElementById('resourceName').value.trim();
-
         if (!name) return;
 
-        SwarmSpaceStore.upsertResource(editingResourceId, name, currentResourceStatus);
         closeModal('resourceModal');
+
+        // Only use atomic for new resources (no editingResourceId)
+        if (!editingResourceId) {
+            const resource = {
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+                name: name,
+                status: currentResourceStatus
+            };
+
+            try {
+                const updatedDoc = await api.appendItem('resources', resource);
+                SwarmSpaceStore.setSession(updatedDoc);
+                renderResourcesSummary();
+                SwarmSpaceSync.resetActivity();
+            } catch (error) {
+                showError('Failed to add resource. Please try again.', error);
+            }
+            return;
+        }
+
+        // Editing existing resource (uses scheduleSave - single-writer operation)
+        SwarmSpaceStore.upsertResource(editingResourceId, name, currentResourceStatus);
         renderResourcesSummary();
         scheduleSave();
     }
@@ -831,19 +974,32 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save location
+     * Handle save location (atomic operation)
      */
-    function handleSaveLocation() {
+    async function handleSaveLocation() {
         const name = document.getElementById('locationName').value.trim();
         const distance = document.getElementById('locationDistance').value.trim();
         const notes = document.getElementById('locationNotes').value.trim();
 
         if (!name) return;
 
-        SwarmSpaceStore.upsertLocation(null, name, distance, notes);
         closeModal('locationModal');
-        renderLocationsSummary();
-        scheduleSave();
+
+        const location = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+            name: name,
+            distance: distance,
+            notes: notes
+        };
+
+        try {
+            const updatedDoc = await api.appendItem('locations', location);
+            SwarmSpaceStore.setSession(updatedDoc);
+            renderLocationsSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to add location. Please try again.', error);
+        }
     }
 
     /**
@@ -879,9 +1035,16 @@ const SwarmSpaceUI = (function() {
         const nameId = item.dataset.nameId;
 
         if (e.target.dataset.action === 'delete-name') {
-            SwarmSpaceStore.deleteName(nameId);
-            renderNamesSummary();
-            scheduleSave();
+            (async () => {
+                try {
+                    const updatedDoc = await api.deleteItem('names', nameId);
+                    SwarmSpaceStore.setSession(updatedDoc);
+                    renderNamesSummary();
+                    SwarmSpaceSync.resetActivity();
+                } catch (error) {
+                    showError('Failed to delete name. Please try again.', error);
+                }
+            })();
             return;
         }
     }
@@ -897,18 +1060,30 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save name
+     * Handle save name (atomic operation)
      */
-    function handleSaveName() {
+    async function handleSaveName() {
         const name = document.getElementById('nameValue').value.trim();
         const description = document.getElementById('nameDescription').value.trim();
 
         if (!name) return;
 
-        SwarmSpaceStore.upsertName(null, name, description);
         closeModal('nameModal');
-        renderNamesSummary();
-        scheduleSave();
+
+        const nameEntry = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+            name: name,
+            description: description
+        };
+
+        try {
+            const updatedDoc = await api.appendItem('names', nameEntry);
+            SwarmSpaceStore.setSession(updatedDoc);
+            renderNamesSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to add name. Please try again.', error);
+        }
     }
 
     /**
@@ -1045,6 +1220,35 @@ const SwarmSpaceUI = (function() {
     // ============ UTILITIES ============
 
     /**
+     * Get week index by ID
+     */
+    function getWeekIndex(weekId) {
+        const session = SwarmSpaceStore.getSession();
+        return session.weeks.findIndex(w => w.id === weekId);
+    }
+
+    /**
+     * Get comment path for atomic operations
+     * @param {number} weekIndex - Index of the week in the weeks array
+     * @param {string} target - 'event', 'action', or 'completion:id'
+     * @returns {string} - Dot-separated path to the comments array
+     */
+    function getCommentPath(weekIndex, target) {
+        if (target === 'event') {
+            return `weeks.${weekIndex}.event.comments`;
+        } else if (target === 'action') {
+            return `weeks.${weekIndex}.action.comments`;
+        } else if (target.startsWith('completion:')) {
+            const completionId = target.split(':')[1];
+            const session = SwarmSpaceStore.getSession();
+            const week = session.weeks[weekIndex];
+            const compIndex = week.completions.findIndex(c => c.id === completionId);
+            return `weeks.${weekIndex}.completions.${compIndex}.comments`;
+        }
+        return null;
+    }
+
+    /**
      * Open a modal
      */
     function openModal(id) {
@@ -1070,5 +1274,5 @@ const SwarmSpaceUI = (function() {
     }
 
     // Public API
-    return { init };
+    return { init, manualRefresh };
 })();

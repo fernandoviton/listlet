@@ -68,6 +68,8 @@
     </div>
 
     <div class="saving-indicator" id="savingIndicator">Saving...</div>
+    <div id="syncStatus" class="sync-status" onclick="SwarmSpaceUI.manualRefresh()">Synced</div>
+    <div id="errorDisplay" class="error-display"></div>
 
     <!-- Comment modal -->
     <div class="modal-overlay" id="commentModal">
@@ -178,6 +180,7 @@
     <script src="../shared/utils.js"></script>
     <script src="../shared/api.js"></script>
     <script src="swarmspace-store.js"></script>
+    <script src="sync.js"></script>
     <script src="swarmspace.js"></script>
     <script>
         SwarmSpaceUI.init(getListName());
