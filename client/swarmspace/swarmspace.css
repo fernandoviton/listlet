@@ -45,6 +45,8 @@
 .session-setting {
     resize: vertical;
     min-height: 60px;
+    max-height: 240px;
+    field-sizing: content;
 }
 
 /* Week sections */
