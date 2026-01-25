@@ -735,7 +735,6 @@ const SwarmSpaceUI = (function() {
         if (e.target.dataset.action === 'add-completion') {
             currentCompletionWeekId = weekId;
             document.getElementById('completionName').value = '';
-            document.getElementById('completionOutcome').value = '';
             openModal('completionModal');
             document.getElementById('completionName').focus();
             return;
