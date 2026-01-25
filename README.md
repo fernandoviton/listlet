@@ -205,24 +205,40 @@ All changes auto-save to Azure.
 
 This repo includes a GitHub Actions workflow for deploying to Azure Static Web Apps.
 
-### 1. Create Azure Static Web App
+### 1. Create Azure Static Web App (CLI - Recommended)
+
+Using CLI avoids GitHub OIDC issues and uses simple deployment token auth:
+
+```bash
+# Create resource group (if needed)
+az group create --name <resource-group> --location "West US 2"
+
+# Create static web app (no GitHub connection - uses deployment token)
+az staticwebapp create --name <app-name> --resource-group <resource-group> --location "West US 2" --sku Free
+```
+
+**Alternative: Azure Portal**
 1. Azure Portal → **Create a resource** → **Static Web App**
-2. Under **Deployment details**, select **GitHub** as the source
-3. Authorize Azure to access your GitHub account
-4. Select this repo and branch (`main`)
-5. Complete the wizard and create the resource
+2. Under **Deployment details**, select **Other** (not GitHub) to avoid OIDC complications
+3. Complete the wizard
 
 ### 2. Add Deployment Token to GitHub
-1. In Azure Portal, open your Static Web App → **Overview**
-2. Click **Manage deployment token** (button at the top of the page)
-3. Copy the token
-4. In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions**
-5. Click **New repository secret**
+
+```bash
+# Get the deployment token
+az staticwebapp secrets list --name <app-name> --resource-group <resource-group> --query "properties.apiKey" -o tsv
+```
+
+Then add it to GitHub:
+1. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
    - Name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
-   - Value: (paste the token)
-6. Click **Add secret**
+   - Value: (paste the token - no extra spaces)
+3. Click **Add secret**
 
 The workflow will auto-deploy on pushes to `main` and on pull requests.
+
+> **Note:** If you created the Static Web App with "GitHub" as the source, the OIDC configuration can conflict with the deployment token. To fix this, either disconnect GitHub (`az staticwebapp disconnect`) or recreate the Static Web App without a GitHub connection.
 
 ## Managing Tasks via Azure Portal
 
