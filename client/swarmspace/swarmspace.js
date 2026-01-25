@@ -201,15 +201,42 @@ const SwarmSpaceUI = (function() {
             renderAll();
         } catch (error) {
             if (error.code === 'NOT_FOUND') {
-                // No existing session - this is fine, start fresh
-                console.log('No existing session, starting fresh');
+                // No existing session - auto-create the list
+                console.log('No existing session, creating new list');
                 SwarmSpaceStore.setSession(null);
                 renderAll();
+                // Create the list on the server with default session data
+                await createList();
             } else {
                 // Actual error (500, network failure, etc.)
                 console.error('Failed to load session:', error);
                 showError(`Failed to load session: ${error.message}`);
             }
+        }
+    }
+
+    /**
+     * Create the list on the server with default session data
+     */
+    async function createList() {
+        try {
+            const session = SwarmSpaceStore.getSession();
+            if (api.isMock) {
+                localStorage.setItem(`mockTasks_${api.listName}`, JSON.stringify(session));
+            } else {
+                const response = await fetch(`${CONFIG.API_BASE_SWARM}/${api.listName}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(session)
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to create list: ${response.status}`);
+                }
+            }
+            console.log('List created successfully');
+        } catch (error) {
+            console.error('Failed to create list:', error);
+            showError(`Failed to create list: ${error.message}`);
         }
     }
 
