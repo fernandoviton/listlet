@@ -3,29 +3,18 @@
 const SwarmSpaceUI = (function() {
     // State
     let api = null;
-    let isSaving = false;
-    let saveTimeout = null;
 
     // Modal state
     let currentCommentTarget = null; // { weekId, target: 'event'|'action'|'completion:id' }
     let currentProjectWeekId = null;
     let currentCompletionWeekId = null;
-    let editingResourceId = null;
-    let currentResourceStatus = null; // 'scarce' or 'abundant'
-    let editingLocationId = null;
-    let editingNameId = null;
-
-    // DOM elements
-    let savingIndicator;
+    let currentResourceStatus = null; // 'scarce' or 'abundant' (resources are add/delete only)
 
     /**
      * Initialize the UI
      */
     async function init(listName) {
         api = createApi(listName, CONFIG.API_BASE_SWARM);
-
-        // Cache common elements
-        savingIndicator = document.getElementById('savingIndicator');
 
         // Set up event listeners
         setupEventListeners();
@@ -240,42 +229,6 @@ const SwarmSpaceUI = (function() {
         }
     }
 
-    /**
-     * Save session data
-     */
-    async function saveSession() {
-        if (isSaving) return;
-
-        isSaving = true;
-        savingIndicator.classList.add('visible');
-
-        try {
-            const session = SwarmSpaceStore.getSession();
-            if (api.isMock) {
-                localStorage.setItem(`mockTasks_${api.listName}`, JSON.stringify(session));
-            } else {
-                await fetch(`${CONFIG.API_BASE_SWARM}/${api.listName}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(session)
-                });
-            }
-        } catch (error) {
-            console.error('Save error:', error);
-        } finally {
-            isSaving = false;
-            setTimeout(() => savingIndicator.classList.remove('visible'), 300);
-        }
-    }
-
-    /**
-     * Debounced save
-     */
-    function scheduleSave() {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(saveSession, 500);
-    }
-
     // ============ RENDER FUNCTIONS ============
 
     /**
@@ -289,6 +242,9 @@ const SwarmSpaceUI = (function() {
         document.getElementById('sessionSetting').value = session.setting || '';
         document.getElementById('startingWeek').value = session.startingWeek || 1;
 
+        // Restrict startingWeek if multiple weeks exist
+        updateStartingWeekRestriction();
+
         // Weeks
         renderWeeks();
 
@@ -297,6 +253,21 @@ const SwarmSpaceUI = (function() {
         renderResourcesSummary();
         renderLocationsSummary();
         renderNamesSummary();
+    }
+
+    /**
+     * Update startingWeek input restriction based on weeks count
+     */
+    function updateStartingWeekRestriction() {
+        const session = SwarmSpaceStore.getSession();
+        const startingWeekInput = document.getElementById('startingWeek');
+        if (session.weeks.length > 1) {
+            startingWeekInput.disabled = true;
+            startingWeekInput.title = 'Cannot change starting week after multiple weeks exist';
+        } else {
+            startingWeekInput.disabled = false;
+            startingWeekInput.title = '';
+        }
     }
 
     /**
@@ -626,31 +597,53 @@ const SwarmSpaceUI = (function() {
     // ============ EVENT HANDLERS ============
 
     /**
-     * Handle metadata changes
+     * Handle metadata changes (title and setting - atomic PATCH)
      */
-    function handleMetaChange() {
+    async function handleMetaChange() {
         const title = document.getElementById('sessionTitle').value;
         const setting = document.getElementById('sessionSetting').value;
-        const startingWeek = parseInt(document.getElementById('startingWeek').value, 10) || 1;
-        SwarmSpaceStore.updateMeta(title, setting, startingWeek);
-        scheduleSave();
+        const session = SwarmSpaceStore.getSession();
+
+        try {
+            // Only patch fields that changed
+            if (title !== session.title) {
+                const updatedDoc = await api.patchItem('title', title);
+                SwarmSpaceStore.setSession(updatedDoc);
+                SwarmSpaceSync.resetActivity();
+            }
+            if (setting !== session.setting) {
+                const updatedDoc = await api.patchItem('setting', setting);
+                SwarmSpaceStore.setSession(updatedDoc);
+                SwarmSpaceSync.resetActivity();
+            }
+        } catch (error) {
+            showError('Failed to save metadata. Please try again.', error);
+        }
     }
 
     /**
-     * Handle starting week change - renumbers all weeks
+     * Handle starting week change - renumbers all weeks (atomic PATCH)
+     * Only allowed when weeks.length <= 1
      */
-    function handleStartingWeekChange() {
-        const title = document.getElementById('sessionTitle').value;
-        const setting = document.getElementById('sessionSetting').value;
-        const startingWeek = parseInt(document.getElementById('startingWeek').value, 10) || 1;
-        SwarmSpaceStore.updateMeta(title, setting, startingWeek);
-        // Renumber existing weeks
+    async function handleStartingWeekChange() {
+        const startingWeekInput = document.getElementById('startingWeek');
+        // Skip if disabled (multiple weeks exist)
+        if (startingWeekInput.disabled) return;
+
+        const startingWeek = parseInt(startingWeekInput.value, 10) || 1;
         const session = SwarmSpaceStore.getSession();
-        session.weeks.forEach((w, i) => {
-            w.weekNumber = startingWeek + i;
-        });
-        rerenderWeeksPreserveState();
-        scheduleSave();
+
+        // Don't update if value hasn't changed
+        if (startingWeek === session.startingWeek) return;
+
+        try {
+            const updatedDoc = await api.patchItem('startingWeek', startingWeek);
+            SwarmSpaceStore.setSession(updatedDoc);
+            rerenderWeeksPreserveState();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to update starting week. Please try again.', error);
+        }
     }
 
     /**
@@ -684,17 +677,24 @@ const SwarmSpaceUI = (function() {
         if (!weekEl) return;
         const weekId = weekEl.dataset.weekId;
 
-        // Make current (check before toggle)
+        // Make current (atomic PATCH)
         if (e.target.dataset.action === 'make-current') {
-            SwarmSpaceStore.setCurrentWeek(weekId);
-            // Collapse all weeks before current, keep current expanded
-            const session = SwarmSpaceStore.getSession();
-            const currentIndex = session.weeks.findIndex(w => w.id === weekId);
-            const expandIds = session.weeks
-                .filter((w, i) => i >= currentIndex)
-                .map(w => w.id);
-            renderWeeks(expandIds);
-            scheduleSave();
+            (async () => {
+                try {
+                    const updatedDoc = await api.patchItem('currentWeekId', weekId);
+                    SwarmSpaceStore.setSession(updatedDoc);
+                    // Collapse all weeks before current, keep current expanded
+                    const session = SwarmSpaceStore.getSession();
+                    const currentIndex = session.weeks.findIndex(w => w.id === weekId);
+                    const expandIds = session.weeks
+                        .filter((w, i) => i >= currentIndex)
+                        .map(w => w.id);
+                    renderWeeks(expandIds);
+                    SwarmSpaceSync.resetActivity();
+                } catch (error) {
+                    showError('Failed to set current week. Please try again.', error);
+                }
+            })();
             return;
         }
 
@@ -704,13 +704,22 @@ const SwarmSpaceUI = (function() {
             return;
         }
 
-        // Action type buttons
+        // Action type buttons (atomic PATCH)
         if (e.target.classList.contains('action-type-btn')) {
             const type = e.target.dataset.actionType;
-            const week = SwarmSpaceStore.getWeek(weekId);
-            SwarmSpaceStore.updateWeekAction(weekId, type, week.action.text);
-            rerenderWeeksPreserveState();
-            scheduleSave();
+            const weekIndex = getWeekIndex(weekId);
+            if (weekIndex === -1) return;
+
+            (async () => {
+                try {
+                    const updatedDoc = await api.patchItem(`weeks.${weekIndex}.action.type`, type);
+                    SwarmSpaceStore.setSession(updatedDoc);
+                    rerenderWeeksPreserveState();
+                    SwarmSpaceSync.resetActivity();
+                } catch (error) {
+                    showError('Failed to update action type. Please try again.', error);
+                }
+            })();
             return;
         }
 
@@ -793,17 +802,31 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle input events in weeks container
+     * Handle input events in weeks container (debounced event text update)
      */
+    const debouncedEventTextPatch = debounce(async (weekIndex, value) => {
+        try {
+            const updatedDoc = await api.patchItem(`weeks.${weekIndex}.event.text`, value);
+            SwarmSpaceStore.setSession(updatedDoc);
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to save event text. Please try again.', error);
+        }
+    }, 500);
+
     function handleWeeksInput(e) {
         const weekEl = e.target.closest('.week-section');
         if (!weekEl) return;
         const weekId = weekEl.dataset.weekId;
 
-        // Event text
+        // Event text (atomic PATCH)
         if (e.target.dataset.field === 'event') {
+            const weekIndex = getWeekIndex(weekId);
+            if (weekIndex === -1) return;
+            // Update local state immediately for responsiveness
             SwarmSpaceStore.updateWeekEvent(weekId, e.target.value);
-            scheduleSave();
+            // Debounced atomic patch to server
+            debouncedEventTextPatch(weekIndex, e.target.value);
             return;
         }
     }
@@ -837,19 +860,69 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save project
+     * Handle save project (atomic operations: PATCH action + POST weeks + POST completion)
      */
-    function handleSaveProject() {
+    async function handleSaveProject() {
         const name = document.getElementById('projectName').value.trim();
         const duration = parseInt(document.getElementById('projectDuration').value, 10);
 
         if (!name || !duration || duration < 1) return;
 
-        SwarmSpaceStore.startProject(currentProjectWeekId, name, duration);
         closeModal('projectModal');
-        rerenderWeeksPreserveState();
-        renderProjectsSummary();
-        scheduleSave();
+
+        try {
+            let session = SwarmSpaceStore.getSession();
+            const weekIndex = getWeekIndex(currentProjectWeekId);
+            if (weekIndex === -1) return;
+
+            const week = session.weeks[weekIndex];
+            const completionWeekNum = week.weekNumber + duration;
+
+            // 1. PATCH the action on the source week
+            const newAction = {
+                type: 'project',
+                projectName: name,
+                projectDuration: duration,
+                comments: week.action.comments || []
+            };
+            let updatedDoc = await api.patchItem(`weeks.${weekIndex}.action`, newAction);
+            SwarmSpaceStore.setSession(updatedDoc);
+            session = SwarmSpaceStore.getSession();
+
+            // 2. Create missing weeks up to completion week (using POST for each)
+            const startingWeek = session.startingWeek || 1;
+            const neededWeeksCount = completionWeekNum - startingWeek + 1;
+
+            while (session.weeks.length < neededWeeksCount) {
+                const newWeek = {
+                    id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+                    event: { text: '', comments: [] },
+                    action: { type: 'discussion', text: '', comments: [] },
+                    completions: []
+                };
+                updatedDoc = await api.appendItem('weeks', newWeek);
+                SwarmSpaceStore.setSession(updatedDoc);
+                session = SwarmSpaceStore.getSession();
+            }
+
+            // 3. Append completion to target week
+            const targetWeekIndex = session.weeks.findIndex(w => w.weekNumber === completionWeekNum);
+            if (targetWeekIndex !== -1) {
+                const completion = {
+                    id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+                    projectName: name,
+                    comments: []
+                };
+                updatedDoc = await api.appendItem(`weeks.${targetWeekIndex}.completions`, completion);
+                SwarmSpaceStore.setSession(updatedDoc);
+            }
+
+            rerenderWeeksPreserveState();
+            renderProjectsSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to start project. Please try again.', error);
+        }
     }
 
     /**
@@ -889,21 +962,12 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle resources summary clicks
+     * Handle resources summary clicks (delete only - no editing)
      */
     function handleResourcesClick(e) {
         const item = e.target.closest('.summary-item');
         if (!item) return;
         const resourceId = item.dataset.resourceId;
-
-        if (e.target.dataset.action === 'edit-resource') {
-            const session = SwarmSpaceStore.getSession();
-            const resource = session.resources.find(r => r.id === resourceId);
-            if (resource) {
-                openResourceModal(resource);
-            }
-            return;
-        }
 
         if (e.target.dataset.action === 'delete-resource') {
             (async () => {
@@ -944,11 +1008,10 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Open resource modal
+     * Open resource modal (add only - no editing)
      * @param {string} status - 'scarce' or 'abundant'
      */
     function openResourceModal(status) {
-        editingResourceId = null;
         currentResourceStatus = status;
         document.getElementById('resourceModalTitle').textContent = status === 'scarce' ? 'Add Scarcity' : 'Add Abundance';
         document.getElementById('resourceName').value = '';
@@ -957,7 +1020,7 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle save resource (atomic operation for new resources)
+     * Handle save resource (atomic append - no editing)
      */
     async function handleSaveResource() {
         const name = document.getElementById('resourceName').value.trim();
@@ -965,29 +1028,20 @@ const SwarmSpaceUI = (function() {
 
         closeModal('resourceModal');
 
-        // Only use atomic for new resources (no editingResourceId)
-        if (!editingResourceId) {
-            const resource = {
-                id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
-                name: name,
-                status: currentResourceStatus
-            };
+        const resource = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
+            name: name,
+            status: currentResourceStatus
+        };
 
-            try {
-                const updatedDoc = await api.appendItem('resources', resource);
-                SwarmSpaceStore.setSession(updatedDoc);
-                renderResourcesSummary();
-                SwarmSpaceSync.resetActivity();
-            } catch (error) {
-                showError('Failed to add resource. Please try again.', error);
-            }
-            return;
+        try {
+            const updatedDoc = await api.appendItem('resources', resource);
+            SwarmSpaceStore.setSession(updatedDoc);
+            renderResourcesSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to add resource. Please try again.', error);
         }
-
-        // Editing existing resource (uses scheduleSave - single-writer operation)
-        SwarmSpaceStore.upsertResource(editingResourceId, name, currentResourceStatus);
-        renderResourcesSummary();
-        scheduleSave();
     }
 
     /**
@@ -1115,13 +1169,15 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle import from previous session
+     * Handle import from previous session (atomic operations)
      */
-    function handleImport() {
+    async function handleImport() {
         const markdown = document.getElementById('importInput').value;
         if (!markdown.trim()) return;
 
-        const session = SwarmSpaceStore.getSession();
+        closeModal('importModal');
+
+        let session = SwarmSpaceStore.getSession();
         let imported = { scarcities: 0, abundances: 0, locations: 0, names: 0 };
 
         // Helper to check if resource exists
@@ -1139,87 +1195,119 @@ const SwarmSpaceUI = (function() {
             n.name.toLowerCase() === name.toLowerCase()
         );
 
-        // Parse Scarcities
-        const scarcitiesMatch = markdown.match(/## Scarcities\n\n([\s\S]*?)(?=\n##|$)/);
-        if (scarcitiesMatch) {
-            const lines = scarcitiesMatch[1].split('\n').filter(l => l.startsWith('- '));
-            lines.forEach(line => {
-                const name = line.replace(/^- /, '').trim();
-                if (name && !resourceExists(name)) {
-                    SwarmSpaceStore.upsertResource(null, name, 'scarce');
-                    imported.scarcities++;
-                }
-            });
-        }
+        // Helper to generate ID
+        const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
-        // Parse Abundances
-        const abundancesMatch = markdown.match(/## Abundances\n\n([\s\S]*?)(?=\n##|$)/);
-        if (abundancesMatch) {
-            const lines = abundancesMatch[1].split('\n').filter(l => l.startsWith('- '));
-            lines.forEach(line => {
-                const name = line.replace(/^- /, '').trim();
-                if (name && !resourceExists(name)) {
-                    SwarmSpaceStore.upsertResource(null, name, 'abundant');
-                    imported.abundances++;
-                }
-            });
-        }
+        try {
+            // Parse and collect items to add
+            const resourcesToAdd = [];
+            const locationsToAdd = [];
+            const namesToAdd = [];
 
-        // Parse Locations
-        const locationsMatch = markdown.match(/## Locations\n\n\|[^\n]+\n\|[^\n]+\n([\s\S]*?)(?=\n##|$)/);
-        if (locationsMatch) {
-            const lines = locationsMatch[1].split('\n').filter(l => l.startsWith('|'));
-            lines.forEach(line => {
-                const cols = line.split('|').map(c => c.trim()).filter(c => c);
-                if (cols.length >= 1) {
-                    const name = cols[0];
-                    const distance = cols[1] !== '-' ? cols[1] : '';
-                    const notes = cols[2] !== '-' ? cols[2] : '';
-                    if (name && !locationExists(name)) {
-                        SwarmSpaceStore.upsertLocation(null, name, distance || '', notes || '');
-                        imported.locations++;
-                    }
-                }
-            });
-        }
-
-        // Parse Names
-        const namesMatch = markdown.match(/## Names\n\n([\s\S]*?)(?=\n##|$)/);
-        if (namesMatch) {
-            const lines = namesMatch[1].split('\n').filter(l => l.startsWith('- '));
-            lines.forEach(line => {
-                // Match: - **Name**: Description or - Name
-                const boldMatch = line.match(/^- \*\*(.+?)\*\*: (.+)$/);
-                if (boldMatch) {
-                    if (!nameExists(boldMatch[1])) {
-                        SwarmSpaceStore.upsertName(null, boldMatch[1], boldMatch[2]);
-                        imported.names++;
-                    }
-                } else {
+            // Parse Scarcities
+            const scarcitiesMatch = markdown.match(/## Scarcities\n\n([\s\S]*?)(?=\n##|$)/);
+            if (scarcitiesMatch) {
+                const lines = scarcitiesMatch[1].split('\n').filter(l => l.startsWith('- '));
+                lines.forEach(line => {
                     const name = line.replace(/^- /, '').trim();
-                    if (name && !nameExists(name)) {
-                        SwarmSpaceStore.upsertName(null, name, '');
-                        imported.names++;
+                    if (name && !resourceExists(name)) {
+                        resourcesToAdd.push({ id: generateId(), name, status: 'scarce' });
+                        imported.scarcities++;
                     }
-                }
-            });
-        }
+                });
+            }
 
-        closeModal('importModal');
-        renderAll();
-        scheduleSave();
+            // Parse Abundances
+            const abundancesMatch = markdown.match(/## Abundances\n\n([\s\S]*?)(?=\n##|$)/);
+            if (abundancesMatch) {
+                const lines = abundancesMatch[1].split('\n').filter(l => l.startsWith('- '));
+                lines.forEach(line => {
+                    const name = line.replace(/^- /, '').trim();
+                    if (name && !resourceExists(name)) {
+                        resourcesToAdd.push({ id: generateId(), name, status: 'abundant' });
+                        imported.abundances++;
+                    }
+                });
+            }
 
-        // Show summary
-        const parts = [];
-        if (imported.scarcities) parts.push(`${imported.scarcities} scarcity(ies)`);
-        if (imported.abundances) parts.push(`${imported.abundances} abundance(s)`);
-        if (imported.locations) parts.push(`${imported.locations} location(s)`);
-        if (imported.names) parts.push(`${imported.names} name(s)`);
+            // Parse Locations
+            const locationsMatch = markdown.match(/## Locations\n\n\|[^\n]+\n\|[^\n]+\n([\s\S]*?)(?=\n##|$)/);
+            if (locationsMatch) {
+                const lines = locationsMatch[1].split('\n').filter(l => l.startsWith('|'));
+                lines.forEach(line => {
+                    const cols = line.split('|').map(c => c.trim()).filter(c => c);
+                    if (cols.length >= 1) {
+                        const name = cols[0];
+                        const distance = cols[1] !== '-' ? cols[1] : '';
+                        const notes = cols[2] !== '-' ? cols[2] : '';
+                        if (name && !locationExists(name)) {
+                            locationsToAdd.push({ id: generateId(), name, distance: distance || '', notes: notes || '' });
+                            imported.locations++;
+                        }
+                    }
+                });
+            }
 
-        if (parts.length > 0) {
-            alert('Imported: ' + parts.join(', '));
-        } else {
-            alert('No new data found to import (duplicates skipped).');
+            // Parse Names
+            const namesMatch = markdown.match(/## Names\n\n([\s\S]*?)(?=\n##|$)/);
+            if (namesMatch) {
+                const lines = namesMatch[1].split('\n').filter(l => l.startsWith('- '));
+                lines.forEach(line => {
+                    // Match: - **Name**: Description or - Name
+                    const boldMatch = line.match(/^- \*\*(.+?)\*\*: (.+)$/);
+                    if (boldMatch) {
+                        if (!nameExists(boldMatch[1])) {
+                            namesToAdd.push({ id: generateId(), name: boldMatch[1], description: boldMatch[2] });
+                            imported.names++;
+                        }
+                    } else {
+                        const name = line.replace(/^- /, '').trim();
+                        if (name && !nameExists(name)) {
+                            namesToAdd.push({ id: generateId(), name, description: '' });
+                            imported.names++;
+                        }
+                    }
+                });
+            }
+
+            // Use atomic appends for each item
+            let updatedDoc = null;
+            for (const resource of resourcesToAdd) {
+                updatedDoc = await api.appendItem('resources', resource);
+            }
+            for (const location of locationsToAdd) {
+                updatedDoc = await api.appendItem('locations', location);
+            }
+            for (const name of namesToAdd) {
+                updatedDoc = await api.appendItem('names', name);
+            }
+
+            // Refresh from server to get final state
+            if (updatedDoc) {
+                SwarmSpaceStore.setSession(updatedDoc);
+            } else {
+                // No items added, refresh anyway
+                const freshDoc = await api.fetchTasks();
+                SwarmSpaceStore.setSession(freshDoc);
+            }
+
+            renderAll();
+            SwarmSpaceSync.resetActivity();
+
+            // Show summary
+            const parts = [];
+            if (imported.scarcities) parts.push(`${imported.scarcities} scarcity(ies)`);
+            if (imported.abundances) parts.push(`${imported.abundances} abundance(s)`);
+            if (imported.locations) parts.push(`${imported.locations} location(s)`);
+            if (imported.names) parts.push(`${imported.names} name(s)`);
+
+            if (parts.length > 0) {
+                alert('Imported: ' + parts.join(', '));
+            } else {
+                alert('No new data found to import (duplicates skipped).');
+            }
+        } catch (error) {
+            showError('Failed to import data. Please try again.', error);
         }
     }
 

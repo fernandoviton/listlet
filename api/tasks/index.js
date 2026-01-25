@@ -18,7 +18,7 @@ module.exports = async function (context, req) {
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, PATCH, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type'
     };
 
@@ -145,6 +145,66 @@ module.exports = async function (context, req) {
                 return;
             }
             target.splice(index, 1);
+
+            // PUT with If-Match (optimistic locking)
+            try {
+                const newData = JSON.stringify(data);
+                await blobClient.upload(newData, newData.length, {
+                    overwrite: true,
+                    conditions: { ifMatch: etag }
+                });
+                // Return full document for client sync
+                context.res = { status: 200, headers, body: JSON.stringify({ success: true, data }) };
+            } catch (e) {
+                if (e.statusCode === 412) {
+                    context.res = { status: 409, headers, body: JSON.stringify({ error: 'Conflict, please retry' }) };
+                    return;
+                }
+                throw e;
+            }
+        }
+        else if (req.method === 'PATCH') {
+            // Atomic update of single field with ETag-based optimistic locking
+            const { path, value } = req.body;
+
+            if (!path || value === undefined) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Missing path or value' }) };
+                return;
+            }
+
+            // GET with ETag
+            const downloadResponse = await blobClient.download(0);
+            const etag = downloadResponse.etag;
+            const content = await streamToString(downloadResponse.readableStreamBody);
+            const data = JSON.parse(content);
+
+            // Navigate to parent and set the value
+            const pathParts = path.split('.');
+            const fieldName = pathParts.pop();
+            const parentPath = pathParts.join('.');
+
+            let parent;
+            if (parentPath === '') {
+                parent = data;
+            } else {
+                parent = navigateToPath(data, parentPath);
+            }
+
+            if (parent === undefined || parent === null) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Invalid path' }) };
+                return;
+            }
+
+            // Handle array index in field name
+            const key = /^\d+$/.test(fieldName) ? parseInt(fieldName) : fieldName;
+
+            // Check if the key exists (for nested paths, we require it to exist except for top-level)
+            if (parentPath !== '' && !(key in parent)) {
+                context.res = { status: 400, headers, body: JSON.stringify({ error: 'Invalid path' }) };
+                return;
+            }
+
+            parent[key] = value;
 
             // PUT with If-Match (optimistic locking)
             try {

@@ -200,6 +200,7 @@ await api.appendItem(
 
 ## Migration Path
 
+### Phase 1 (Completed)
 1. Deploy API changes (backwards compatible)
 2. Update swarmspace client to use atomic operations for:
    - Adding comments
@@ -209,11 +210,22 @@ await api.appendItem(
    - Adding weeks
    - Adding resources/locations/names
    - Deleting resources/locations/names
-3. Keep whole-document PUT for:
-   - Session metadata (title, setting, startingWeek)
-   - Current week marker
-   - Project setup (modifies action fields)
-   - Event text (single writer - the scribe)
+
+### Phase 2 (Completed)
+All remaining PUT operations converted to PATCH:
+   - ~~Session metadata (title, setting)~~ → Now uses PATCH
+   - ~~Current week marker~~ → Now uses PATCH
+   - ~~Project setup~~ → Now uses PATCH + POST
+   - ~~Event text~~ → Now uses PATCH
+   - ~~Action type~~ → Now uses PATCH
+   - startingWeek → **RESTRICTED** (only when <= 1 week exists)
+
+**After Phase 2:**
+- Full PUT only used for initial blob creation (when session doesn't exist)
+- `scheduleSave()` and `saveSession()` **REMOVED**
+- All operations are atomic (POST/DELETE/PATCH)
+
+See `PLAN-ATOMIC-API-2.md` for detailed Phase 2 implementation plan.
 
 ## Operations to Make Atomic
 

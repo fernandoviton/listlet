@@ -192,7 +192,7 @@ describe('CORS Handling', () => {
 
         expect(context.res.status).toBe(204);
         expect(context.res.headers['Access-Control-Allow-Origin']).toBe('*');
-        expect(context.res.headers['Access-Control-Allow-Methods']).toBe('GET, PUT, POST, DELETE, OPTIONS');
+        expect(context.res.headers['Access-Control-Allow-Methods']).toBe('GET, PUT, POST, DELETE, PATCH, OPTIONS');
         expect(context.res.headers['Access-Control-Allow-Headers']).toBe('Content-Type');
     });
 });
@@ -798,6 +798,205 @@ describe('Path Navigation', () => {
 
         expect(context.res.status).toBe(400);
         expect(JSON.parse(context.res.body).error).toBe('Path must point to array');
+    });
+});
+
+// ============ PATCH TESTS ============
+
+describe('PATCH - Update single field', () => {
+    /**
+     * Update a top-level field
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "title", "value": "New Title" }
+     */
+    test('should update a top-level field', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            title: 'Old Title'
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'title', value: 'New Title' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.title).toBe('New Title');
+    });
+
+    /**
+     * Update a nested field using dot notation
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "weeks.0.event.text", "value": "Updated event text" }
+     */
+    test('should update a nested field', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            weeks: [{
+                id: 'w1',
+                weekNumber: 1,
+                event: { text: 'Original event', comments: [] },
+                action: { type: 'discussion', comments: [] },
+                completions: []
+            }]
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'weeks.0.event.text', value: 'Updated event text' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.weeks[0].event.text).toBe('Updated event text');
+    });
+
+    /**
+     * Update an object field (replaces entire object at path)
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "weeks.0.action", "value": { type: 'project', projectName: 'Build Shelter', projectDuration: 2, comments: [] } }
+     */
+    test('should update an object field', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            weeks: [{
+                id: 'w1',
+                weekNumber: 1,
+                event: { text: '', comments: [] },
+                action: { type: 'discussion', comments: [] },
+                completions: []
+            }]
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const newAction = { type: 'project', projectName: 'Build Shelter', projectDuration: 2, comments: [] };
+        const req = createRequest('PATCH', { path: 'weeks.0.action', value: newAction });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.weeks[0].action).toEqual(newAction);
+    });
+
+    /**
+     * Update currentWeekId
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "currentWeekId", "value": "w2" }
+     */
+    test('should update currentWeekId', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            currentWeekId: 'w1',
+            weeks: [
+                { id: 'w1', weekNumber: 1, event: { text: '', comments: [] }, action: { type: 'discussion', comments: [] }, completions: [] },
+                { id: 'w2', weekNumber: 2, event: { text: '', comments: [] }, action: { type: 'discussion', comments: [] }, completions: [] }
+            ]
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'currentWeekId', value: 'w2' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.currentWeekId).toBe('w2');
+    });
+
+    /**
+     * Conflict handling: ETag mismatch returns 409
+     */
+    test('should return 409 on ETag mismatch', async () => {
+        const existingSession = { ...EMPTY_SESSION, title: 'Old Title' };
+        const mocks = createMockBlobClient({ session: existingSession });
+
+        mocks.upload.mockImplementationOnce(async (data, length, opts) => {
+            if (opts?.conditions?.ifMatch) {
+                const error = new Error('Precondition Failed');
+                error.statusCode = 412;
+                throw error;
+            }
+        });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'title', value: 'New Title' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(409);
+        expect(JSON.parse(context.res.body).error).toBe('Conflict, please retry');
+    });
+
+    /**
+     * Invalid path returns 400
+     */
+    test('should return 400 for invalid path', async () => {
+        createMockBlobClient({ session: { ...EMPTY_SESSION } });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'weeks.99.event.text', value: 'Test' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(400);
+        expect(JSON.parse(context.res.body).error).toBe('Invalid path');
+    });
+
+    test('returns 400 if path is missing', async () => {
+        createMockBlobClient();
+        const context = createContext();
+        const req = createRequest('PATCH', { value: 'test' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(400);
+        expect(JSON.parse(context.res.body).error).toBe('Missing path or value');
+    });
+
+    test('returns 400 if value is missing', async () => {
+        createMockBlobClient();
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'title' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(400);
+        expect(JSON.parse(context.res.body).error).toBe('Missing path or value');
+    });
+
+    /**
+     * Null value is allowed (for clearing fields)
+     */
+    test('should allow null value to clear a field', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            currentWeekId: 'w1'
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'currentWeekId', value: null });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.currentWeekId).toBe(null);
     });
 });
 

@@ -160,6 +160,50 @@ function createApi(listName, baseUrl) {
                 return result.data; // Full document for sync
             }
             throw new Error('Max retries exceeded');
+        },
+
+        /**
+         * Atomically update a single field at a given path
+         * Uses ETag-based optimistic locking with automatic retry on conflict
+         * @param {string} path - Dot-separated path to field (e.g., 'weeks.0.event.text')
+         * @param {*} value - New value to set
+         * @param {number} maxRetries - Maximum retry attempts on conflict
+         * @returns {Promise<Object>} - Full document after update
+         */
+        async patchItem(path, value, maxRetries = 3) {
+            if (isMock) {
+                // For mock, simulate atomic patch
+                const current = JSON.parse(localStorage.getItem(`mockTasks_${listName}`) || '{}');
+                const pathParts = path.split('.');
+                const fieldName = pathParts.pop();
+                let parent = current;
+                for (const part of pathParts) {
+                    parent = /^\d+$/.test(part) ? parent[parseInt(part)] : parent[part];
+                }
+                const key = /^\d+$/.test(fieldName) ? parseInt(fieldName) : fieldName;
+                parent[key] = value;
+                localStorage.setItem(`mockTasks_${listName}`, JSON.stringify(current));
+                return current;
+            }
+
+            for (let i = 0; i < maxRetries; i++) {
+                const response = await fetch(`${baseUrl}/${listName}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, value })
+                });
+
+                if (response.status === 409) {
+                    // Conflict - wait with exponential backoff and retry
+                    await new Promise(r => setTimeout(r, 100 * (i + 1)));
+                    continue;
+                }
+
+                if (!response.ok) throw new Error('Failed to patch item');
+                const result = await response.json();
+                return result.data; // Full document for sync
+            }
+            throw new Error('Max retries exceeded');
         }
     };
 }

@@ -10,12 +10,13 @@ The original implementation used raw PUT of the entire document. When User A and
 
 ### Atomic Operations with Optimistic Locking
 
-The API now supports atomic POST (append) and DELETE operations with ETag-based optimistic locking:
+The API supports atomic operations with ETag-based optimistic locking:
 
 1. **POST** - Atomically append an item to an array
 2. **DELETE** - Atomically remove an item from an array by ID
+3. **PATCH** - Atomically update a single field (added in Phase 2)
 
-Both operations:
+All atomic operations:
 - Read the current document with its ETag
 - Apply the change
 - Write back with `If-Match: <etag>` condition
@@ -48,14 +49,26 @@ Updated handlers to use atomic operations:
 - `handleSaveName()` - Uses `api.appendItem('names', nameEntry)`
 - Delete handlers use `api.deleteItem()` for respective arrays
 
-### Single-Writer Operations (still use scheduleSave)
-Some operations remain single-writer since they modify existing fields rather than array items:
-- Metadata (title, setting, startingWeek)
+### All Operations Now Atomic (Phase 2)
+As of Phase 2, ALL operations use atomic methods:
+
+**Using PATCH:**
+- Metadata (title, setting)
 - Event text (scribe editing the card text)
 - Action type changes (discussion/discovery/project)
 - Current week marker
 - Project setup (modifies existing week action)
-- Import (bulk operation)
+
+**Using POST (append):**
+- Import (uses multiple atomic appends)
+- Adding weeks, comments, completions, resources, locations, names
+
+**Restricted:**
+- `startingWeek` - Can only be changed when session has <= 1 week
+
+**Removed:**
+- `scheduleSave()` and `saveSession()` have been removed
+- Full document PUT is only used for initial document creation
 
 ## API Endpoints
 
@@ -98,6 +111,32 @@ Remove an item from an array by ID.
 
 **Response:** Same as POST
 
+### PATCH `/api/tasks/{listName}`
+Update a single field atomically.
+
+**Request:**
+```json
+{
+  "path": "weeks.0.event.text",
+  "value": "Updated event text"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { /* full document */ }
+}
+```
+
+**Response (409 Conflict):**
+```json
+{
+  "error": "Conflict, please retry"
+}
+```
+
 ## Client API (`api.js`)
 
 ### `api.appendItem(path, value, maxRetries = 3)`
@@ -106,7 +145,10 @@ Atomically append an item to an array. Retries automatically on conflict.
 ### `api.deleteItem(path, id, maxRetries = 3)`
 Atomically remove an item by ID. Retries automatically on conflict.
 
-Both methods return the full document after the operation, allowing the client to sync its local state.
+### `api.patchItem(path, value, maxRetries = 3)`
+Atomically update a single field at the given path. Retries automatically on conflict.
+
+All methods return the full document after the operation, allowing the client to sync its local state.
 
 ## UI Indicators
 
@@ -118,7 +160,9 @@ A sync status indicator appears in the bottom-right corner:
 ### Error Display
 When an atomic operation fails (after all retries exhausted), a red error banner appears at the bottom of the screen for 5 seconds.
 
-**Important**: Atomic operations do NOT fall back to `scheduleSave()` on failure. Falling back to a full PUT could silently overwrite other users' changes, causing data loss. Instead, the user is notified and can retry manually.
+**Important**: Atomic operations do NOT fall back to full PUT on failure. Falling back to a full PUT could silently overwrite other users' changes, causing data loss. Instead, the user is notified and can retry manually.
+
+**Note**: As of Phase 2, `scheduleSave()` and `saveSession()` have been completely removed from the codebase. All operations now use atomic methods (POST/DELETE/PATCH).
 
 ## Testing
 
@@ -140,6 +184,7 @@ The API has comprehensive tests in `api/tasks/index.test.js` covering:
 - **PUT**: Full document replacement
 - **POST (Append)**: Top-level arrays, nested arrays, validation, conflict handling
 - **DELETE (Remove)**: By ID, nested paths, validation, not found, conflict handling
+- **PATCH (Update)**: Top-level fields, nested fields, object fields, validation, conflict handling
 - **Path Navigation**: Various path patterns (`resources`, `weeks.0.event.comments`, etc.)
 - **Integration**: Concurrent users, full workflow scenarios
 
@@ -152,26 +197,33 @@ PASS tasks/index.test.js
     √ returns 500 if BLOB_SAS_URL is invalid
   CORS Handling
     √ OPTIONS request returns 204 with CORS headers
-  GET - Fetch Document
-    √ returns document content
-    √ returns 404 if document does not exist
-  PUT - Replace Document
-    √ replaces entire document
+  GET - Fetch Session
+    √ returns session document
+    √ returns 404 if session does not exist
+  PUT - Replace Session
+    √ replaces entire session document
   POST - Atomic Append
-    √ appends item to top-level array
-    √ appends item to nested array using dot notation
+    √ appends week to weeks array
+    √ appends comment to week event
     √ returns 409 on ETag mismatch (conflict)
     ...
   DELETE - Atomic Remove
-    √ removes item from array by id
-    √ removes item from nested array
+    √ removes resource by id
+    √ removes comment from week event
     √ returns 409 on ETag mismatch (conflict)
     ...
+  PATCH - Update single field
+    √ should update a top-level field
+    √ should update a nested field
+    √ should update an object field
+    √ should return 409 on ETag mismatch
+    √ should return 400 for invalid path
+    ...
   Integration Scenarios
-    √ simulates concurrent comment additions
-    √ full session workflow
+    √ concurrent users adding comments to same event
+    √ full SwarmSpace session workflow
 
-Tests: 27 passed
+Tests: 40 passed
 ```
 
 ## Manual Verification
@@ -180,4 +232,7 @@ Tests: 27 passed
 2. **Retry logic**: Check network tab for 409 responses and successful retries
 3. **Sync polling**: Leave tab idle, verify polling stops after 5 min, shows paused UI
 4. **Manual refresh**: Click sync indicator when paused, verify data refreshes
-5. **Single-writer ops**: Edit event text, verify scheduleSave() still works
+5. **PATCH operations**: Edit event text, change action type, verify atomic PATCH calls (no PUT)
+6. **startingWeek restriction**: Add 2+ weeks, verify startingWeek input becomes disabled
+7. **Resources**: Verify resources can only be added/deleted, not edited
+8. **No PUT calls**: After initial load, verify no PUT requests in Network tab (only GET/POST/DELETE/PATCH)
