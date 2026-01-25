@@ -56,10 +56,10 @@ const EMPTY_SESSION = {
 /**
  * Create a mock Azure context object for a SwarmSpace session
  */
-function createContext(sessionName = TEST_SESSION_NAME) {
+function createContext(sessionName = TEST_SESSION_NAME, containerName = TEST_CONTAINER) {
     return {
         res: null,
-        bindingData: { listName: sessionName }
+        bindingData: { container: containerName, name: sessionName }
     };
 }
 
