@@ -183,7 +183,11 @@
     <script src="sync.js"></script>
     <script src="swarmspace.js"></script>
     <script>
-        SwarmSpaceUI.init(getListName());
+        if (hasExplicitListName()) {
+            SwarmSpaceUI.init(getListName());
+        } else {
+            SwarmSpaceUI.showListSelector();
+        }
     </script>
 </body>
 </html>

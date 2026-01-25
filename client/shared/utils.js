@@ -34,3 +34,13 @@ function getListName() {
     const list = params.get('list');
     return (list && list.trim()) || CONFIG.DEFAULT_LIST_NAME;
 }
+
+/**
+ * Check if a list name was explicitly provided in URL
+ * @returns {boolean} - True if list param exists and is non-empty
+ */
+function hasExplicitListName() {
+    const params = new URLSearchParams(window.location.search);
+    const list = params.get('list');
+    return !!(list && list.trim());
+}

@@ -1307,6 +1307,36 @@ const SwarmSpaceUI = (function() {
         };
     }
 
+    /**
+     * Show list selector when no list name is provided
+     */
+    function showListSelector() {
+        const container = document.querySelector('.container');
+        container.innerHTML = `
+            <header class="header">
+                <h1>Swarm Space RPG</h1>
+            </header>
+            <div class="card" style="text-align: center; padding: 2rem;">
+                <h2>Select a Session</h2>
+                <p style="margin-bottom: 1.5rem; color: #666;">Enter a session name to create or open a session.</p>
+                <form id="listSelectorForm" style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                    <input type="text" id="listNameInput" class="input" placeholder="Session name..." 
+                           style="min-width: 200px;" required pattern="[a-zA-Z0-9_-]+" 
+                           title="Use letters, numbers, hyphens, and underscores only">
+                    <button type="submit" class="btn btn-primary">Open Session</button>
+                </form>
+            </div>
+        `;
+        
+        document.getElementById('listSelectorForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const listName = document.getElementById('listNameInput').value.trim();
+            if (listName) {
+                window.location.href = `?list=${encodeURIComponent(listName)}`;
+            }
+        });
+    }
+
     // Public API
-    return { init, manualRefresh };
+    return { init, manualRefresh, showListSelector };
 })();
