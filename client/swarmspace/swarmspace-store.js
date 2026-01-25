@@ -488,14 +488,54 @@ const SwarmSpaceStore = (function() {
             md += '\n';
         }
 
-        // Names
+        // Names (organized by group)
         if (session.names.length > 0) {
             md += '## Names\n\n';
+
+            // Group names by their group field
+            const ungrouped = [];
+            const grouped = new Map();
+
             session.names.forEach(n => {
-                if (n.description) {
-                    md += `- **${n.name}**: ${n.description}\n`;
+                if (n.group) {
+                    if (!grouped.has(n.group)) {
+                        grouped.set(n.group, []);
+                    }
+                    grouped.get(n.group).push(n);
                 } else {
-                    md += `- ${n.name}\n`;
+                    ungrouped.push(n);
+                }
+            });
+
+            // Sort groups alphabetically
+            const sortedGroups = Array.from(grouped.keys()).sort();
+
+            // Output ungrouped names first
+            if (ungrouped.length > 0) {
+                ungrouped.forEach(n => {
+                    if (n.description) {
+                        md += `- **${n.name}**: ${n.description}\n`;
+                    } else {
+                        md += `- ${n.name}\n`;
+                    }
+                });
+                if (sortedGroups.length > 0) {
+                    md += '\n';
+                }
+            }
+
+            // Output grouped names
+            sortedGroups.forEach((groupName, idx) => {
+                md += `### ${groupName}\n\n`;
+                grouped.get(groupName).forEach(n => {
+                    if (n.description) {
+                        md += `- **${n.name}**: ${n.description}\n`;
+                    } else {
+                        md += `- ${n.name}\n`;
+                    }
+                });
+                if (idx < sortedGroups.length - 1) {
+                    md += '\n';
                 }
             });
         }

@@ -976,6 +976,86 @@ describe('PATCH - Update single field', () => {
     });
 
     /**
+     * Set group on a name
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "names.0.group", "value": "Characters" }
+     */
+    test('should set group on a name', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            names: [
+                { id: 'n1', name: 'Alice', description: 'The protagonist' },
+                { id: 'n2', name: 'Bob', description: 'Sidekick' }
+            ]
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'names.0.group', value: 'Characters' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.names[0].group).toBe('Characters');
+        expect(response.data.names[1].group).toBeUndefined();
+    });
+
+    /**
+     * Change group on a name (from one group to another)
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "names.0.group", "value": "Locations" }
+     */
+    test('should change group on a name', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            names: [
+                { id: 'n1', name: 'The Ruins', description: 'Ancient structure', group: 'Places' }
+            ]
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'names.0.group', value: 'Locations' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.names[0].group).toBe('Locations');
+    });
+
+    /**
+     * Clear group on a name (set to empty string)
+     *
+     * PATCH /api/tasks/test-session-isolated
+     * { "path": "names.0.group", "value": "" }
+     */
+    test('should clear group on a name (set to empty string)', async () => {
+        const existingSession = {
+            ...EMPTY_SESSION,
+            names: [
+                { id: 'n1', name: 'Eve', description: 'Antagonist', group: 'Characters' }
+            ]
+        };
+        createMockBlobClient({ session: existingSession });
+
+        const context = createContext();
+        const req = createRequest('PATCH', { path: 'names.0.group', value: '' });
+
+        await handler(context, req);
+
+        expect(context.res.status).toBe(200);
+        const response = JSON.parse(context.res.body);
+        expect(response.success).toBe(true);
+        expect(response.data.names[0].group).toBe('');
+    });
+
+    /**
      * Null value is allowed (for clearing fields)
      */
     test('should allow null value to clear a field', async () => {

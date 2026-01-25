@@ -218,8 +218,9 @@ module.exports = async function (context, req) {
             // Handle array index in field name
             const key = /^\d+$/.test(fieldName) ? parseInt(fieldName) : fieldName;
 
-            // Check if the key exists (for nested paths, we require it to exist except for top-level)
-            if (parentPath !== '' && !(key in parent)) {
+            // For array indices, require the index to exist
+            // For object properties, allow adding new fields (e.g., names.0.group can add 'group' to names[0])
+            if (/^\d+$/.test(fieldName) && !(key in parent)) {
                 context.res = { status: 400, headers, body: JSON.stringify({ error: 'Invalid path' }) };
                 return;
             }

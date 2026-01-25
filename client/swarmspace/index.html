@@ -29,6 +29,15 @@
 
         <button class="btn btn-primary add-week-btn" id="addWeekBtn">+ Add Week</button>
 
+        <!-- Names section (full width) -->
+        <div class="names-section card">
+            <div class="names-header">
+                <h3>Names</h3>
+                <button class="btn btn-secondary btn-small" id="addNameBtn">+ Add Name</button>
+            </div>
+            <div id="namesSummary"></div>
+        </div>
+
         <!-- Summary panels -->
         <div class="summary-panels">
             <div class="summary-panel card">
@@ -49,11 +58,6 @@
                 <h3>Locations</h3>
                 <div id="locationsSummary"></div>
                 <button class="btn btn-secondary btn-small" id="addLocationBtn">+ Location</button>
-            </div>
-            <div class="summary-panel card">
-                <h3>Names</h3>
-                <div id="namesSummary"></div>
-                <button class="btn btn-secondary btn-small" id="addNameBtn">+ Name</button>
             </div>
         </div>
 
@@ -151,9 +155,24 @@
             <h3 id="nameModalTitle">Add Name</h3>
             <input type="text" id="nameValue" placeholder="Name..." autocomplete="off">
             <input type="text" id="nameDescription" placeholder="Description (optional)..." autocomplete="off">
+            <input type="text" id="nameGroup" placeholder="Group (optional)..." autocomplete="off" list="nameGroupList">
+            <datalist id="nameGroupList"></datalist>
             <div class="modal-buttons">
                 <button class="modal-btn secondary" id="cancelNameBtn">Cancel</button>
                 <button class="modal-btn primary" id="saveNameBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move to Group modal -->
+    <div class="modal-overlay" id="groupModal">
+        <div class="modal">
+            <h3>Move to Group</h3>
+            <input type="text" id="groupValue" placeholder="Group (leave empty for Ungrouped)..." autocomplete="off" list="groupValueList">
+            <datalist id="groupValueList"></datalist>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelGroupBtn">Cancel</button>
+                <button class="modal-btn primary" id="saveGroupBtn">Move</button>
             </div>
         </div>
     </div>

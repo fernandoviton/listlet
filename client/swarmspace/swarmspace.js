@@ -172,6 +172,17 @@ const SwarmSpaceUI = (function() {
         });
         setupModalBackdropDismiss('nameModal');
 
+        // Group modal (move to group)
+        document.getElementById('cancelGroupBtn').addEventListener('click', () => closeModal('groupModal'));
+        document.getElementById('saveGroupBtn').addEventListener('click', handleSaveGroup);
+        document.getElementById('groupValue').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSaveGroup();
+            }
+        });
+        setupModalBackdropDismiss('groupModal');
+
         // Import modal
         document.getElementById('importPreviousBtn').addEventListener('click', () => {
             document.getElementById('importInput').value = '';
@@ -1086,7 +1097,28 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Render names summary
+     * Get all unique groups from names
+     */
+    function getNameGroups() {
+        const session = SwarmSpaceStore.getSession();
+        const groups = new Set();
+        session.names.forEach(n => {
+            if (n.group) groups.add(n.group);
+        });
+        return Array.from(groups).sort();
+    }
+
+    /**
+     * Populate group datalist with existing groups
+     */
+    function populateGroupDatalist(datalistId) {
+        const datalist = document.getElementById(datalistId);
+        const groups = getNameGroups();
+        datalist.innerHTML = groups.map(g => `<option value="${escapeHtml(g)}">`).join('');
+    }
+
+    /**
+     * Render names summary with grouping
      */
     function renderNamesSummary() {
         const session = SwarmSpaceStore.getSession();
@@ -1097,23 +1129,83 @@ const SwarmSpaceUI = (function() {
             return;
         }
 
-        container.innerHTML = session.names.map(n => `
-            <div class="summary-item" data-name-id="${n.id}">
-                <div>
-                    <div class="summary-item-name">${escapeHtml(n.name)}${n.description ? ': ' + escapeHtml(n.description) : ''}</div>
+        // Group names by their group field
+        const ungrouped = [];
+        const grouped = new Map(); // group name -> [names]
+
+        session.names.forEach(n => {
+            if (n.group) {
+                if (!grouped.has(n.group)) {
+                    grouped.set(n.group, []);
+                }
+                grouped.get(n.group).push(n);
+            } else {
+                ungrouped.push(n);
+            }
+        });
+
+        // Sort groups alphabetically
+        const sortedGroups = Array.from(grouped.keys()).sort();
+
+        let html = '';
+
+        // Render ungrouped names first (if any)
+        if (ungrouped.length > 0) {
+            html += renderNameGroup('Ungrouped', ungrouped, 'ungrouped');
+        }
+
+        // Render each group
+        sortedGroups.forEach(groupName => {
+            html += renderNameGroup(groupName, grouped.get(groupName), groupName);
+        });
+
+        container.innerHTML = html;
+    }
+
+    /**
+     * Render a single name group
+     */
+    function renderNameGroup(groupLabel, names, groupKey) {
+        const itemsHtml = names.map(n => `
+            <div class="name-item" data-name-id="${n.id}">
+                <div class="name-item-content">
+                    <span class="name-item-name">${escapeHtml(n.name)}</span>${n.description ? '<span class="name-item-description">: ' + escapeHtml(n.description) + '</span>' : ''}
                 </div>
-                <div class="summary-item-actions">
-                    <button class="summary-item-btn delete" data-action="delete-name">×</button>
+                <div class="name-item-actions">
+                    <button class="name-item-btn" data-action="move-name" title="Move to group">m</button>
+                    <button class="name-item-btn delete" data-action="delete-name" title="Delete">×</button>
                 </div>
             </div>
         `).join('');
+
+        return `
+            <div class="name-group" data-group="${escapeHtml(groupKey)}">
+                <div class="name-group-header">
+                    <span class="name-group-toggle">▼</span>
+                    ${escapeHtml(groupLabel)}
+                </div>
+                <div class="name-group-items">
+                    ${itemsHtml}
+                </div>
+            </div>
+        `;
     }
 
     /**
      * Handle names summary clicks
      */
     function handleNamesClick(e) {
-        const item = e.target.closest('.summary-item');
+        // Handle group header toggle
+        const groupHeader = e.target.closest('.name-group-header');
+        if (groupHeader) {
+            const group = groupHeader.closest('.name-group');
+            if (group) {
+                group.classList.toggle('collapsed');
+            }
+            return;
+        }
+
+        const item = e.target.closest('.name-item');
         if (!item) return;
         const nameId = item.dataset.nameId;
 
@@ -1130,6 +1222,11 @@ const SwarmSpaceUI = (function() {
             })();
             return;
         }
+
+        if (e.target.dataset.action === 'move-name') {
+            openGroupModal(nameId);
+            return;
+        }
     }
 
     /**
@@ -1138,6 +1235,8 @@ const SwarmSpaceUI = (function() {
     function openNameModal() {
         document.getElementById('nameValue').value = '';
         document.getElementById('nameDescription').value = '';
+        document.getElementById('nameGroup').value = '';
+        populateGroupDatalist('nameGroupList');
         openModal('nameModal');
         document.getElementById('nameValue').focus();
     }
@@ -1148,6 +1247,7 @@ const SwarmSpaceUI = (function() {
     async function handleSaveName() {
         const name = document.getElementById('nameValue').value.trim();
         const description = document.getElementById('nameDescription').value.trim();
+        const group = document.getElementById('nameGroup').value.trim();
 
         if (!name) return;
 
@@ -1159,6 +1259,11 @@ const SwarmSpaceUI = (function() {
             description: description
         };
 
+        // Only add group if it's not empty
+        if (group) {
+            nameEntry.group = group;
+        }
+
         try {
             const updatedDoc = await api.appendItem('names', nameEntry);
             SwarmSpaceStore.setSession(updatedDoc);
@@ -1167,6 +1272,50 @@ const SwarmSpaceUI = (function() {
         } catch (error) {
             showError('Failed to add name. Please try again.', error);
         }
+    }
+
+    // State for group modal
+    let currentGroupNameId = null;
+
+    /**
+     * Open group modal to change a name's group
+     */
+    function openGroupModal(nameId) {
+        currentGroupNameId = nameId;
+        const session = SwarmSpaceStore.getSession();
+        const nameEntry = session.names.find(n => n.id === nameId);
+
+        document.getElementById('groupValue').value = nameEntry?.group || '';
+        populateGroupDatalist('groupValueList');
+        openModal('groupModal');
+        document.getElementById('groupValue').focus();
+    }
+
+    /**
+     * Handle save group (PATCH operation to change group only)
+     */
+    async function handleSaveGroup() {
+        const group = document.getElementById('groupValue').value.trim();
+
+        closeModal('groupModal');
+
+        if (!currentGroupNameId) return;
+
+        const session = SwarmSpaceStore.getSession();
+        const nameIndex = session.names.findIndex(n => n.id === currentGroupNameId);
+        if (nameIndex === -1) return;
+
+        try {
+            // Use PATCH to update only the group field
+            const updatedDoc = await api.patchItem(`names.${nameIndex}.group`, group || '');
+            SwarmSpaceStore.setSession(updatedDoc);
+            renderNamesSummary();
+            SwarmSpaceSync.resetActivity();
+        } catch (error) {
+            showError('Failed to update group. Please try again.', error);
+        }
+
+        currentGroupNameId = null;
     }
 
     /**
