@@ -1,251 +1,233 @@
 # Task List SPA
 
 ## Overview
-A simple, responsive task list application that displays tasks with multiple states. Supports **multiple lists** via URL parameters (`?list=mylist`). Tasks are persisted via an Azure Function backed by Azure Blob Storage.
+A simple, responsive task list application that displays tasks with multiple states. Supports **multiple lists** via URL parameters (`?list=mylist`). Also includes **SwarmSpace**, a collaborative RPG session tracker with real-time sync.
+
+Tasks are persisted via an Azure Static Web App with a managed API backed by Azure Blob Storage.
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────────┐     ┌─────────────────────┐
-│  Static     │     │  Azure Function │     │  Azure Blob Storage │
-│  Hosting    │────▶│  (GET/PUT)      │────▶│  {listName}.json    │
-│             │     │  /tasks/{list}  │     │                     │
-└─────────────┘     └─────────────────┘     └─────────────────────┘
+┌─────────────────────┐     ┌─────────────────────┐
+│  Azure Static Web   │     │  Azure Blob Storage │
+│  App (SPA + API)    │────▶│  {listName}.json    │
+│  /api/tasks/{list}  │     │                     │
+└─────────────────────┘     └─────────────────────┘
 
 URL: /tasks/?list=grocery  →  API: /api/tasks/grocery  →  Blob: grocery.json
+URL: /swarmspace/?list=game1  →  API: /api/tasks/game1  →  Blob: game1.json
 ```
 
 ## URL Structure
 
 ```
-/                           → Redirects to /home/
-/?list=grocery              → Redirects to /tasks/?list=grocery
-/home/                      → Landing page (create new list)
-/tasks/?list=grocery        → Task list for "grocery"
-/tasks/                     → Task list with default list name
+/                              → Redirects to /home/
+/?list=grocery                 → Redirects to /tasks/?list=grocery
+/home/                         → Landing page (create new list)
+/tasks/?list=grocery           → Task list for "grocery"
+/tasks/                        → Task list with default list name
+/swarmspace/?list=game1        → SwarmSpace RPG tracker
 ```
 
-## Data Format
+## Data Formats
 
-### `{listName}.json` (in Azure Blob Storage)
+### Task List: `{listName}.json`
 ```json
 [
   { "name": "Task name here", "status": "not-started", "tags": [] },
   { "name": "Another task", "status": "in-progress", "tags": ["urgent"] },
-  { "name": "Completed task", "status": "done", "tags": ["backend"] },
-  { "name": "Deleted task", "status": "removed" }
+  { "name": "Completed task", "status": "done", "tags": ["backend"] }
 ]
 ```
 
 **Status values:** `not-started` | `in-progress` | `needs-review` | `done` | `removed`
+
+### SwarmSpace Session: `{sessionName}.json`
+```json
+{
+  "title": "Campaign Name",
+  "setting": "Setting description",
+  "startingWeek": 1,
+  "currentWeekId": "abc123",
+  "weeks": [{ "id": "abc123", "weekNumber": 1, "event": {...}, "action": {...}, "completions": [] }],
+  "resources": [{ "id": "xyz", "name": "Gold", "status": "abundant" }],
+  "locations": [{ "id": "loc1", "name": "Town", "distance": 0 }],
+  "names": [{ "id": "n1", "name": "NPC Name", "description": "..." }]
+}
+```
 
 ## File Structure
 ```
 checklist-spa/
 ├── client/                     # Frontend SPA
 │   ├── index.html              # Router (redirects to /home/ or /tasks/)
-│   ├── config.js               # API URL and default list name
-│   ├── config.example.js       # Template for config.js
+│   ├── config.js               # API configuration
+│   ├── staticwebapp.config.json # SWA routing config
 │   │
 │   ├── shared/                 # Shared utilities
-│   │   ├── api.js              # Fetch/save logic, list creation
+│   │   ├── api.js              # Fetch/save logic with atomic operations
 │   │   ├── utils.js            # escapeHtml, generateId, getListName
-│   │   └── common.css          # Base styles (buttons, modals, etc.)
+│   │   └── common.css          # Base styles
 │   │
-│   ├── home/                   # Landing page feature
-│   │   └── index.html          # Create new list, go to existing list
+│   ├── home/                   # Landing page
+│   │   └── index.html
 │   │
-│   └── tasks/                  # Task list feature
-│       ├── index.html          # Task list page
-│       ├── tasks.js            # Task-specific UI logic
-│       ├── tasks.css           # Task-specific styles
-│       ├── task-store.js       # State management
-│       └── task-mutations.js   # Pure mutation functions
+│   ├── tasks/                  # Task list feature
+│   │   ├── index.html
+│   │   ├── tasks.js            # UI logic
+│   │   ├── tasks.css
+│   │   ├── task-store.js       # State management
+│   │   └── task-mutations.js   # Pure mutation functions
+│   │
+│   └── swarmspace/             # RPG session tracker
+│       ├── index.html
+│       ├── swarmspace.js       # UI logic
+│       ├── swarmspace.css
+│       ├── swarmspace-store.js # State management
+│       └── sync.js             # Multi-user sync polling
 │
-├── azure-function/             # Backend API
+├── api/                        # Azure Functions API
 │   ├── host.json
 │   ├── package.json
-│   ├── local.settings.json
-│   └── TasksApi/
-│       ├── function.json
-│       └── index.js
+│   ├── local.settings.json     # Local dev settings (not deployed)
+│   └── tasks/
+│       ├── function.json       # HTTP trigger config
+│       ├── index.js            # API handler
+│       └── index.test.js       # Tests
 │
-├── PLAN.md                     # Implementation roadmap
-└── README.md                   # This file
+└── README.md
 ```
 
-## Azure Deployment Instructions
+## Azure Deployment (CLI)
 
-### 1. Create Azure Storage Account
-1. Go to [Azure Portal](https://portal.azure.com) → **Create a resource** → **Storage account**
-2. Choose a name (e.g., `taskliststorage`)
-3. Select region, Standard performance, LRS redundancy
-4. Click **Review + Create** → **Create**
+### Prerequisites
+- [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) installed
+- Logged in: `az login`
 
-### 2. Create Blob Container
-1. Open your storage account
-2. Go to **Containers** → **+ Container**
-3. Name: `tasklists`
-4. Public access level: **Private**
-5. Click **Create**
+### 1. Create Resources
 
-### 3. Upload Initial Task Data
-1. In the `tasklists` container, click **Upload**
-2. Create and upload a file named `tasks.json`:
-```json
-[
-  { "name": "Sample task 1", "status": "not-started" },
-  { "name": "Sample task 2", "status": "in-progress" }
-]
+```bash
+# Variables - customize these
+RG="listlet"
+LOCATION="westus2"
+APP_NAME="listlet"
+
+# Create resource group
+az group create --name $RG --location $LOCATION
+
+# Create storage account (name must be globally unique, lowercase, no hyphens)
+az storage account create --name $APP_NAME --resource-group $RG --location $LOCATION --sku Standard_LRS
+
+# Create blob container for task data
+az storage container create --name tasklists --account-name $APP_NAME --auth-mode login
+
+# Create Static Web App (includes managed API)
+az staticwebapp create --name $APP_NAME --resource-group $RG --location $LOCATION --sku Free
 ```
 
-### 4. Generate SAS URL
-1. Go to Storage Account → **Shared access signature** (under Security + networking)
-2. Configure permissions:
-   - Allowed services: **Blob**
-   - Allowed resource types: **Container** and **Object**
-   - Allowed permissions: **Read**, **Write**, **List**
-3. Set an expiry date (e.g., 1 year from now)
-4. Click **Generate SAS and connection string**
-5. Copy the **Blob service SAS URL** (save for step 6)
+### 2. Generate SAS Token and Configure API
 
-### 5. Create Azure Function App
-1. Azure Portal → **Create a resource** → **Function App**
-2. Configure:
-   - Runtime stack: **Node.js**
-   - Version: **18 LTS** or newer
-   - Operating System: **Windows** or **Linux**
-   - Plan type: **Consumption (Serverless)**
-3. Click **Review + Create** → **Create**
+```bash
+# Get storage account key
+KEY=$(az storage account keys list --account-name $APP_NAME --resource-group $RG --query "[0].value" -o tsv)
 
-### 6. Configure Function App Settings
-1. Go to your Function App → **Settings** → **Environment Variables** → **App Settings** Tab
-2. Click **+ Add** and add:
-   - Name: `BLOB_SAS_URL`
-   - Value: (paste Blob service SAS URL from step 4)
-3. Add another setting:
-   - Name: `BLOB_CONTAINER_NAME`
-   - Value: `tasklists`
-4. Click **Apply**, then **Confirm**
+# Generate SAS token (valid 5 years)
+EXPIRY=$(date -u -d "+5 years" '+%Y-%m-%dT%H:%MZ')  # Linux/macOS
+# PowerShell: $EXPIRY = (Get-Date).AddYears(5).ToString("yyyy-MM-ddTHH:mmZ")
 
-### 7. Deploy the Azure Function (VS Code)
-1. Install the **Azure Functions** extension in VS Code
-2. Open the `azure-function/` folder in VS Code
-3. Run `npm install` in the terminal
-4. Click the **Azure** icon in the sidebar
-5. Under **Functions**, right-click your function app → **Deploy to Function App...**
-6. Select your function app and confirm
+SAS=$(az storage account generate-sas --account-name $APP_NAME --account-key $KEY --permissions rwl --services b --resource-types co --expiry $EXPIRY -o tsv)
 
-**Alternative: Deploy via Azure Portal**
-1. In your Function App, go to **Deployment Center**
-2. Choose **GitHub** as the source
-3. Authorize and select this repo, `main` branch, `azure-function/` folder
-4. Azure will auto-deploy on push
+# Build full SAS URL
+SAS_URL="https://${APP_NAME}.blob.core.windows.net?${SAS}"
 
-### 8. Configure CORS
-1. Go to Function App → **CORS**
-2. Add your static website URL (from step 1): `https://<storageaccount>.z13.web.core.windows.net`
-3. Click **Save**
+# Set app settings (use stop-parsing in PowerShell to handle ampersands)
+# PowerShell:
+az --% staticwebapp appsettings set --name <app-name> --resource-group <rg> --setting-names "BLOB_SAS_URL=<sas-url>" "BLOB_CONTAINER_NAME=tasklists"
 
-### 9. Enable Static Website Hosting
-1. Go to your Storage Account → **Data management** → **Static website**
-2. Set **Static website** to **Enabled**
-3. Index document name: `index.html`
-4. Click **Save**
-5. Copy the **Primary endpoint** URL (this is your SPA URL)
+# Bash:
+az staticwebapp appsettings set --name $APP_NAME --resource-group $RG \
+  --setting-names "BLOB_SAS_URL=$SAS_URL" "BLOB_CONTAINER_NAME=tasklists"
+```
 
-### 10. Upload SPA Files
-1. Go to Storage Account → **Containers** → **$web**
-2. Upload all files and folders from `client/`:
-   - `index.html`, `config.js`
-   - `shared/` folder (with api.js, utils.js, common.css)
-   - `home/` folder (with index.html)
-   - `tasks/` folder (with all files)
-3. Your SPA is now live at the Primary endpoint URL
+### 3. Set Up GitHub Deployment
 
-### 11. Update Frontend Config
-Before uploading, update `client/config.js` with your function URL:
-```javascript
-const CONFIG = {
-    API_BASE: 'https://<your-function-app>.azurewebsites.net/api/tasks',
-    DEFAULT_LIST_NAME: 'tasks'  // Used when no ?list= param
-};
+```bash
+# Get deployment token
+az staticwebapp secrets list --name $APP_NAME --resource-group $RG --query "properties.apiKey" -o tsv
+```
+
+Add to GitHub repo → **Settings** → **Secrets and variables** → **Actions**:
+- Name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
+- Value: (paste the token)
+
+Push to `main` branch to trigger deployment.
+
+### 4. Verify Settings
+
+```bash
+# Check app settings
+az staticwebapp appsettings list --name $APP_NAME --resource-group $RG --query "properties" -o json
+
+# Get the app URL
+az staticwebapp show --name $APP_NAME --resource-group $RG --query "defaultHostname" -o tsv
+```
+
+## Renewing SAS Token
+
+SAS tokens expire. To renew:
+
+```bash
+# Generate new token
+KEY=$(az storage account keys list --account-name $APP_NAME --resource-group $RG --query "[0].value" -o tsv)
+EXPIRY=$(date -u -d "+5 years" '+%Y-%m-%dT%H:%MZ')
+SAS=$(az storage account generate-sas --account-name $APP_NAME --account-key $KEY --permissions rwl --services b --resource-types co --expiry $EXPIRY -o tsv)
+SAS_URL="https://${APP_NAME}.blob.core.windows.net?${SAS}"
+
+# Update app setting (PowerShell - use --% for ampersands)
+az --% staticwebapp appsettings set --name <app-name> --resource-group <rg> --setting-names "BLOB_SAS_URL=<new-sas-url>"
+```
+
+## Local Development
+
+### Mock Mode (No Azure)
+Set `API_BASE: 'mock'` in `client/config.js` to use localStorage instead of the API.
+
+### With Local API
+1. Copy `api/local.settings.json` and add your `BLOB_SAS_URL`
+2. Run `cd api && npm install && npm start`
+3. Set `API_BASE: 'http://localhost:7071/api/tasks'` in config.js
+4. Open `client/` files in a local server
+
+### Run Tests
+```bash
+cd api && npm test
 ```
 
 ## Using the App
 
-### Accessing Lists
-- **Home page:** `https://yoursite.com/` → create new list or enter existing name
-- **Default list:** `https://yoursite.com/tasks/` → uses `DEFAULT_LIST_NAME`
-- **Specific list:** `https://yoursite.com/tasks/?list=grocery` → loads `grocery.json`
-- **Any name works:** `?list=work`, `?list=shopping`, `?list=my-project`
+### Task Lists
+- **Home page:** Create new list or enter existing name
+- **Access list:** `/tasks/?list=grocery`
+- **Cycle status:** Click task → not-started → in-progress → needs-review → done → removed
+- **Tags:** Click + to add, click tag to remove, click ✎ to rename
 
-### Task Actions
+### SwarmSpace
+- **Create session:** `/swarmspace/?list=my-campaign`
+- **Multi-user:** Changes sync every 15 seconds
+- **Features:** Week tracking, resources, locations, NPCs, comments
 
-**Add a task:** Type in the input field and click "Add" or press Enter
-
-**Cycle task status:** Click a task to cycle through: not-started → in-progress → needs-review → done → removed
-
-**Add a tag:** Click the + button next to a task, type a tag name. Previously used tags appear as suggestions.
-
-**Remove a tag:** Click on a tag to remove it from that task.
-
-**Rename a tag:** Click the ✎ button on a tag group header to rename the tag across all tasks.
-
-**Status icons:**
-- ○ Not started (gray)
-- ◐ In progress (orange)
-- ? Needs review (blue)
-- ✓ Done (green, strikethrough)
-- ✕ Removed (red, faded)
-
-All changes auto-save to Azure.
-
-## GitHub Actions Deployment Setup
-
-This repo includes a GitHub Actions workflow for deploying to Azure Static Web Apps.
-
-### 1. Create Azure Static Web App (CLI - Recommended)
-
-Using CLI avoids GitHub OIDC issues and uses simple deployment token auth:
+## Managing Data via CLI
 
 ```bash
-# Create resource group (if needed)
-az group create --name <resource-group> --location "West US 2"
+# List blobs
+az storage blob list --container-name tasklists --account-name $APP_NAME --auth-mode login --query "[].name" -o tsv
 
-# Create static web app (no GitHub connection - uses deployment token)
-az staticwebapp create --name <app-name> --resource-group <resource-group> --location "West US 2" --sku Free
+# Download a list
+az storage blob download --container-name tasklists --account-name $APP_NAME --name "tasks.json" --file tasks.json --auth-mode login
+
+# Upload/update a list
+az storage blob upload --container-name tasklists --account-name $APP_NAME --name "tasks.json" --file tasks.json --auth-mode login --overwrite
+
+# Delete a list
+az storage blob delete --container-name tasklists --account-name $APP_NAME --name "tasks.json" --auth-mode login
 ```
-
-**Alternative: Azure Portal**
-1. Azure Portal → **Create a resource** → **Static Web App**
-2. Under **Deployment details**, select **Other** (not GitHub) to avoid OIDC complications
-3. Complete the wizard
-
-### 2. Add Deployment Token to GitHub
-
-```bash
-# Get the deployment token
-az staticwebapp secrets list --name <app-name> --resource-group <resource-group> --query "properties.apiKey" -o tsv
-```
-
-Then add it to GitHub:
-1. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-   - Name: `AZURE_STATIC_WEB_APPS_API_TOKEN`
-   - Value: (paste the token - no extra spaces)
-3. Click **Add secret**
-
-The workflow will auto-deploy on pushes to `main` and on pull requests.
-
-> **Note:** If you created the Static Web App with "GitHub" as the source, the OIDC configuration can conflict with the deployment token. To fix this, either disconnect GitHub (`az staticwebapp disconnect`) or recreate the Static Web App without a GitHub connection.
-
-## Managing Tasks via Azure Portal
-
-1. Storage Account → Containers → tasklists
-2. Click `{listName}.json` → **Edit**
-3. Modify and save
-
-**Recover removed tasks:** Edit the JSON and change `"status": "removed"` back to `"not-started"`
-
-**Create new lists:** Just visit `?list=newname` - an empty list is created automatically
