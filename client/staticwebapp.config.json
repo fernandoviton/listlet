@@ -1,7 +1,7 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "*.{css,js,json,png,jpg,jpeg,gif,ico,svg}"]
+    "exclude": ["/api/*", "/swarmspace/*", "*.{css,js,json,png,jpg,jpeg,gif,ico,svg}"]
   },
   "routes": [
     {
