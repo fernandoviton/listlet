@@ -390,10 +390,18 @@ const SwarmSpaceStore = (function() {
                     });
                 }
             } else if (week.action.comments && week.action.comments.length > 0) {
-                md += `- **${actionLabel}:**\n`;
-                week.action.comments.forEach(c => {
-                    md += `  - ${c.text}\n`;
-                });
+                if (week.action.type === 'discussion') {
+                    md += `- **${actionLabel}:** <discussion type="speculative - not established facts">\n`;
+                    week.action.comments.forEach(c => {
+                        md += `  - ${c.text}\n`;
+                    });
+                    md += `  </discussion>\n`;
+                } else {
+                    md += `- **${actionLabel}:**\n`;
+                    week.action.comments.forEach(c => {
+                        md += `  - ${c.text}\n`;
+                    });
+                }
             }
 
             md += '\n';
