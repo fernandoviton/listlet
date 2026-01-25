@@ -9,6 +9,7 @@ const SwarmSpaceUI = (function() {
     let currentProjectWeekId = null;
     let currentCompletionWeekId = null;
     let currentResourceStatus = null; // 'scarce' or 'abundant' (resources are add/delete only)
+    let modalMouseDownTarget = null; // Track mousedown target for backdrop click detection
 
     /**
      * Initialize the UI
@@ -43,6 +44,29 @@ const SwarmSpaceUI = (function() {
      */
     function manualRefresh() {
         SwarmSpaceSync.manualRefresh();
+    }
+
+    /**
+     * Set up backdrop click dismissal for a modal.
+     * Only closes if both mousedown and click occur on the backdrop itself,
+     * preventing accidental closes when selecting text and releasing outside the modal content.
+     * @param {string} modalId - The modal element ID
+     */
+    function setupModalBackdropDismiss(modalId) {
+        const modal = document.getElementById(modalId);
+        modal.addEventListener('mousedown', (e) => {
+            if (e.target.id === modalId) {
+                modalMouseDownTarget = modalId;
+            } else {
+                modalMouseDownTarget = null;
+            }
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === modalId && modalMouseDownTarget === modalId) {
+                closeModal(modalId);
+            }
+            modalMouseDownTarget = null;
+        });
     }
 
     /**
@@ -87,16 +111,12 @@ const SwarmSpaceUI = (function() {
                 handleSaveComment();
             }
         });
-        document.getElementById('commentModal').addEventListener('click', (e) => {
-            if (e.target.id === 'commentModal') closeModal('commentModal');
-        });
+        setupModalBackdropDismiss('commentModal');
 
         // Project modal
         document.getElementById('cancelProjectBtn').addEventListener('click', () => closeModal('projectModal'));
         document.getElementById('saveProjectBtn').addEventListener('click', handleSaveProject);
-        document.getElementById('projectModal').addEventListener('click', (e) => {
-            if (e.target.id === 'projectModal') closeModal('projectModal');
-        });
+        setupModalBackdropDismiss('projectModal');
 
         // Completion modal
         document.getElementById('cancelCompletionBtn').addEventListener('click', () => closeModal('completionModal'));
@@ -107,9 +127,7 @@ const SwarmSpaceUI = (function() {
                 handleSaveCompletion();
             }
         });
-        document.getElementById('completionModal').addEventListener('click', (e) => {
-            if (e.target.id === 'completionModal') closeModal('completionModal');
-        });
+        setupModalBackdropDismiss('completionModal');
 
         // Resource modal (scarcities and abundances)
         document.getElementById('addScarcityBtn').addEventListener('click', () => openResourceModal('scarce'));
@@ -122,9 +140,7 @@ const SwarmSpaceUI = (function() {
                 handleSaveResource();
             }
         });
-        document.getElementById('resourceModal').addEventListener('click', (e) => {
-            if (e.target.id === 'resourceModal') closeModal('resourceModal');
-        });
+        setupModalBackdropDismiss('resourceModal');
 
         // Resource summaries (delegation)
         document.getElementById('scarcitiesSummary').addEventListener('click', handleResourcesClick);
@@ -134,16 +150,12 @@ const SwarmSpaceUI = (function() {
         document.getElementById('addLocationBtn').addEventListener('click', () => openLocationModal());
         document.getElementById('cancelLocationBtn').addEventListener('click', () => closeModal('locationModal'));
         document.getElementById('saveLocationBtn').addEventListener('click', handleSaveLocation);
-        document.getElementById('locationModal').addEventListener('click', (e) => {
-            if (e.target.id === 'locationModal') closeModal('locationModal');
-        });
+        setupModalBackdropDismiss('locationModal');
 
         // Export modal
         document.getElementById('closeExportBtn').addEventListener('click', () => closeModal('exportModal'));
         document.getElementById('copyExportBtn').addEventListener('click', handleCopyExport);
-        document.getElementById('exportModal').addEventListener('click', (e) => {
-            if (e.target.id === 'exportModal') closeModal('exportModal');
-        });
+        setupModalBackdropDismiss('exportModal');
 
         // Weeks container (delegation)
         document.getElementById('weeksContainer').addEventListener('click', handleWeeksClick);
@@ -159,9 +171,7 @@ const SwarmSpaceUI = (function() {
                 handleSaveName();
             }
         });
-        document.getElementById('nameModal').addEventListener('click', (e) => {
-            if (e.target.id === 'nameModal') closeModal('nameModal');
-        });
+        setupModalBackdropDismiss('nameModal');
 
         // Import modal
         document.getElementById('importPreviousBtn').addEventListener('click', () => {
@@ -170,9 +180,7 @@ const SwarmSpaceUI = (function() {
         });
         document.getElementById('cancelImportBtn').addEventListener('click', () => closeModal('importModal'));
         document.getElementById('doImportBtn').addEventListener('click', handleImport);
-        document.getElementById('importModal').addEventListener('click', (e) => {
-            if (e.target.id === 'importModal') closeModal('importModal');
-        });
+        setupModalBackdropDismiss('importModal');
 
         // Summary panels (delegation)
         document.getElementById('projectsSummary').addEventListener('click', handleProjectsClick);
