@@ -1,4 +1,4 @@
-// Config loader - tries config.local.js first, falls back to config.js
+// Config loader - tries config.local.js first (localhost only), falls back to config.js
 // This script must be loaded synchronously before other scripts that need CONFIG
 
 (function() {
@@ -8,21 +8,25 @@
         return;
     }
 
-    // Try to load config.local.js synchronously via XHR
-    try {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', '/config.local.js', false); // synchronous
-        xhr.send();
-        if (xhr.status === 200) {
-            // Execute in global scope
-            const script = document.createElement('script');
-            script.textContent = xhr.responseText;
-            document.head.appendChild(script);
-            console.log('[Config] Loaded config.local.js');
-            return;
+    const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+    // Only try config.local.js on localhost
+    if (isLocalhost) {
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', '/config.local.js', false); // synchronous
+            xhr.send();
+            if (xhr.status === 200) {
+                // Execute in global scope
+                const script = document.createElement('script');
+                script.textContent = xhr.responseText;
+                document.head.appendChild(script);
+                console.log('[Config] Loaded config.local.js');
+                return;
+            }
+        } catch (e) {
+            // config.local.js doesn't exist, fall through to config.js
         }
-    } catch (e) {
-        // config.local.js doesn't exist, fall through to config.js
     }
 
     // Fall back to config.js
