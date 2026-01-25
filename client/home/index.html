@@ -128,7 +128,7 @@
             createBtn.textContent = 'Creating...';
 
             try {
-                const response = await fetch(`${CONFIG.API_BASE}/${listId}`, {
+                const response = await fetch(`${CONFIG.API_BASE_TASKS}/${listId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: '[]'

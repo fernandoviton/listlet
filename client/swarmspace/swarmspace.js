@@ -254,7 +254,7 @@ const SwarmSpaceUI = (function() {
             if (api.isMock) {
                 localStorage.setItem(`mockTasks_${api.listName}`, JSON.stringify(session));
             } else {
-                await fetch(`${CONFIG.API_BASE}/${api.listName}`, {
+                await fetch(`${CONFIG.API_BASE_SWARM}/${api.listName}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(session)
