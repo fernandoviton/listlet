@@ -471,6 +471,79 @@ describe('JSON export/import roundtrip', () => {
         expect(parsed.unfinishedProjects[0].name).toBe('Walls');
         expect(parsed.startingWeekNumber).toBeGreaterThan(1);
     });
+
+    test('import is idempotent - second import adds nothing', () => {
+        // Set up source session and export
+        store.upsertResource(null, 'Water', 'scarce');
+        store.upsertLocation(null, 'Village', '2 days', 'Friendly');
+        store.upsertName(null, 'Alice', 'Leader');
+        for (let i = 0; i < 3; i++) store.addWeek();
+        store.setCurrentWeek(store.getSession().weeks[2].id);
+        store.startProject(store.getSession().weeks[0].id, 'Walls', 4);
+        const json = store.exportForImport();
+        const parsed = store.parseJsonImport(json);
+
+        // Simulate importing into a fresh session (what the UI handler does)
+        store.setSession(null);
+        const applyImport = (parsed) => {
+            const session = store.getSession();
+
+            // Same duplicate checks as the UI handler
+            const resourceExists = (name) => session.resources.some(r =>
+                r.name.toLowerCase() === name.toLowerCase());
+            const locationExists = (name) => session.locations.some(l =>
+                l.name.toLowerCase() === name.toLowerCase());
+            const nameExists = (name) => session.names.some(n =>
+                n.name.toLowerCase() === name.toLowerCase());
+            const completionExists = (name) => session.weeks.some(w =>
+                (w.completions || []).some(c => c.projectName.toLowerCase() === name.toLowerCase()));
+
+            let added = { resources: 0, locations: 0, names: 0, projects: 0 };
+
+            parsed.resources.forEach(r => {
+                if (!resourceExists(r.name)) {
+                    store.upsertResource(null, r.name, r.status);
+                    added.resources++;
+                }
+            });
+            parsed.locations.forEach(l => {
+                if (!locationExists(l.name)) {
+                    store.upsertLocation(null, l.name, l.distance, l.notes);
+                    added.locations++;
+                }
+            });
+            parsed.names.forEach(n => {
+                if (!nameExists(n.name)) {
+                    store.upsertName(null, n.name, n.description);
+                    added.names++;
+                }
+            });
+            parsed.unfinishedProjects.forEach(p => {
+                if (!p.remaining || p.remaining < 1) return;
+                if (completionExists(p.name)) return;
+                // Create week and add completion (simplified - just add to week 1)
+                if (session.weeks.length === 0) store.addWeek();
+                store.addManualCompletion(session.weeks[0].id, p.name);
+                added.projects++;
+            });
+
+            return added;
+        };
+
+        // First import should add everything
+        const first = applyImport(parsed);
+        expect(first.resources).toBe(1);
+        expect(first.locations).toBe(1);
+        expect(first.names).toBe(1);
+        expect(first.projects).toBe(1);
+
+        // Second import should add nothing
+        const second = applyImport(parsed);
+        expect(second.resources).toBe(0);
+        expect(second.locations).toBe(0);
+        expect(second.names).toBe(0);
+        expect(second.projects).toBe(0);
+    });
 });
 
 // ============ export → import roundtrip ============

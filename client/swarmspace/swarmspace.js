@@ -1445,8 +1445,14 @@ const SwarmSpaceUI = (function() {
                 // Use startingWeekNumber for the first week if session has no weeks
                 const startingWeekNumber = parsed.startingWeekNumber || 1;
 
+                // Helper to check if a completion with this project name already exists
+                const completionExists = (name) => session.weeks.some(w =>
+                    (w.completions || []).some(c => c.projectName.toLowerCase() === name.toLowerCase())
+                );
+
                 for (const project of parsed.unfinishedProjects) {
                     if (!project.remaining || project.remaining < 1) continue;
+                    if (completionExists(project.name)) continue;
 
                     // Completion week is relative: startingWeekNumber + remaining - 1
                     // (remaining=1 means it completes in the first week of the new session)
