@@ -1542,18 +1542,27 @@ const SwarmSpaceUI = (function() {
             return;
         }
 
+        const progressTitle = document.getElementById('progressTitle');
+        const progressMsg = document.getElementById('progressMessage');
+
+        progressTitle.textContent = `Creating "${trimmed}"...`;
+        progressMsg.textContent = 'Checking if session exists...';
+        openModal('progressModal');
+
         try {
             const checkResp = await fetch(`${CONFIG.API_BASE_SWARM}/${trimmed}`);
             if (checkResp.ok) {
+                closeModal('progressModal');
                 alert(`Session "${trimmed}" already exists. Please choose a different name.`);
                 return;
             }
         } catch (e) { /* network error — proceed */ }
 
+        progressMsg.textContent = 'Exporting current session...';
         const exportJson = SwarmSpaceStore.exportForImport();
 
         try {
-            // Create empty session on server (PUT required before atomic appends work)
+            progressMsg.textContent = 'Creating new session...';
             const defaultSession = SwarmSpaceStore.createDefaultSession();
             const putResp = await fetch(`${CONFIG.API_BASE_SWARM}/${trimmed}`, {
                 method: 'PUT',
@@ -1562,12 +1571,14 @@ const SwarmSpaceUI = (function() {
             });
             if (!putResp.ok) throw new Error('Failed to create session: ' + putResp.status);
 
-            // Import into new session
+            progressMsg.textContent = 'Importing data into new session...';
             const newApi = createApi(trimmed, CONFIG.API_BASE_SWARM);
             await importIntoSession(newApi, exportJson);
 
+            progressMsg.textContent = 'Done! Redirecting...';
             window.location.href = '?list=' + encodeURIComponent(trimmed);
         } catch (error) {
+            closeModal('progressModal');
             showError('Failed to create next session. ' + error.message, error);
         }
     }
