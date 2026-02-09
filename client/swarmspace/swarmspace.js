@@ -91,6 +91,11 @@ const SwarmSpaceUI = (function() {
      * Set up all event listeners
      */
     function setupEventListeners() {
+        // Close progress modal if page is restored from bfcache (e.g. back button)
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) closeModal('progressModal');
+        });
+
         // Session metadata
         document.getElementById('sessionTitle').addEventListener('input', debounce(handleMetaChange, 500));
         document.getElementById('sessionSetting').addEventListener('input', debounce(handleMetaChange, 500));
@@ -1576,7 +1581,7 @@ const SwarmSpaceUI = (function() {
             await importIntoSession(newApi, exportJson);
 
             progressMsg.textContent = 'Done! Redirecting...';
-            window.location.replace('?list=' + encodeURIComponent(trimmed));
+            window.location.href = '?list=' + encodeURIComponent(trimmed);
         } catch (error) {
             closeModal('progressModal');
             showError('Failed to create next session. ' + error.message, error);
