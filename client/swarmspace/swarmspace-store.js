@@ -341,6 +341,13 @@ const SwarmSpaceStore = (function() {
      * Export session to Markdown
      */
     function exportMarkdown() {
+        // Split multi-line text: first line stays inline, rest become sub-bullets
+        function formatLines(text, indent) {
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length <= 1) return text;
+            return lines[0] + '\n' + lines.slice(1).map(l => `${indent}- ${l.trim()}`).join('\n');
+        }
+
         let md = '';
 
         // Title and setting
@@ -359,10 +366,10 @@ const SwarmSpaceStore = (function() {
 
             // Event
             if (week.event.text) {
-                md += `- **Event:** ${week.event.text}\n`;
+                md += `- **Event:** ${formatLines(week.event.text, '  ')}\n`;
                 if (week.event.comments.length > 0) {
                     week.event.comments.forEach(c => {
-                        md += `  - ${c.text}\n`;
+                        md += `  - ${formatLines(c.text, '    ')}\n`;
                     });
                 }
             }
@@ -373,7 +380,7 @@ const SwarmSpaceStore = (function() {
                     md += `- **Completed:** ${comp.projectName}\n`;
                     if (comp.comments && comp.comments.length > 0) {
                         comp.comments.forEach(c => {
-                            md += `  - ${c.text}\n`;
+                            md += `  - ${formatLines(c.text, '    ')}\n`;
                         });
                     }
                 });
@@ -386,20 +393,20 @@ const SwarmSpaceStore = (function() {
                 md += `- **Project:** ${week.action.projectName} (${duration} week${duration !== 1 ? 's' : ''})\n`;
                 if (week.action.comments && week.action.comments.length > 0) {
                     week.action.comments.forEach(c => {
-                        md += `  - ${c.text}\n`;
+                        md += `  - ${formatLines(c.text, '    ')}\n`;
                     });
                 }
             } else if (week.action.comments && week.action.comments.length > 0) {
                 if (week.action.type === 'discussion') {
                     md += `- **${actionLabel}:** <discussion type="speculative - not established facts">\n`;
                     week.action.comments.forEach(c => {
-                        md += `  - ${c.text}\n`;
+                        md += `  - ${formatLines(c.text, '    ')}\n`;
                     });
                     md += `  </discussion>\n`;
                 } else {
                     md += `- **${actionLabel}:**\n`;
                     week.action.comments.forEach(c => {
-                        md += `  - ${c.text}\n`;
+                        md += `  - ${formatLines(c.text, '    ')}\n`;
                     });
                 }
             }

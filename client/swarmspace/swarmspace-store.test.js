@@ -611,6 +611,55 @@ describe('export/import roundtrip', () => {
         );
     });
 
+    test('multi-line event text exports as sub-bullets', () => {
+        store.addWeek();
+        const session = store.getSession();
+        store.updateWeekEvent(session.weeks[0].id, 'First line\nSecond line\nThird line');
+
+        const md = store.exportMarkdown();
+        expect(md).toContain('- **Event:** First line\n  - Second line\n  - Third line\n');
+    });
+
+    test('single-line event text exports without sub-bullets', () => {
+        store.addWeek();
+        const session = store.getSession();
+        store.updateWeekEvent(session.weeks[0].id, 'Just one line');
+
+        const md = store.exportMarkdown();
+        expect(md).toContain('- **Event:** Just one line\n');
+        // No sub-bullets
+        expect(md).not.toMatch(/- \*\*Event:\*\* Just one line\n\s+- /);
+    });
+
+    test('multi-line event comment exports as sub-bullets', () => {
+        store.addWeek();
+        const session = store.getSession();
+        store.updateWeekEvent(session.weeks[0].id, 'An event');
+        store.addComment(session.weeks[0].id, 'event', 'Line A\nLine B');
+
+        const md = store.exportMarkdown();
+        expect(md).toContain('  - Line A\n    - Line B\n');
+    });
+
+    test('multi-line action comment exports as sub-bullets', () => {
+        store.addWeek();
+        const session = store.getSession();
+        store.startProject(session.weeks[0].id, 'Walls', 3);
+        store.addComment(session.weeks[0].id, 'action', 'Note 1\nNote 2\nNote 3');
+
+        const md = store.exportMarkdown();
+        expect(md).toContain('  - Note 1\n    - Note 2\n    - Note 3\n');
+    });
+
+    test('multi-line text with blank lines filters them out', () => {
+        store.addWeek();
+        const session = store.getSession();
+        store.updateWeekEvent(session.weeks[0].id, 'First\n\nSecond\n\n');
+
+        const md = store.exportMarkdown();
+        expect(md).toContain('- **Event:** First\n  - Second\n');
+    });
+
     test('unfinished projects survive export then import with correct remaining', () => {
         // Create 5 weeks
         for (let i = 0; i < 5; i++) store.addWeek();
