@@ -156,6 +156,12 @@ const SwarmSpaceUI = (function() {
         document.getElementById('copyExportBtn').addEventListener('click', handleCopyExport);
         setupModalBackdropDismiss('exportModal');
 
+        // Export for Import (JSON) modal
+        document.getElementById('exportJsonBtn').addEventListener('click', handleExportForImport);
+        document.getElementById('closeExportJsonBtn').addEventListener('click', () => closeModal('exportJsonModal'));
+        document.getElementById('copyJsonExportBtn').addEventListener('click', handleCopyJsonExport);
+        setupModalBackdropDismiss('exportJsonModal');
+
         // Weeks container (delegation)
         document.getElementById('weeksContainer').addEventListener('click', handleWeeksClick);
         document.getElementById('weeksContainer').addEventListener('input', handleWeeksInput);
@@ -1354,8 +1360,16 @@ const SwarmSpaceUI = (function() {
      * Handle import from previous session (atomic operations)
      */
     async function handleImport() {
-        const markdown = document.getElementById('importInput').value;
-        if (!markdown.trim()) return;
+        const input = document.getElementById('importInput').value;
+        if (!input.trim()) return;
+
+        let parsed;
+        try {
+            parsed = SwarmSpaceStore.parseJsonImport(input);
+        } catch (error) {
+            showError(error.message, error);
+            return;
+        }
 
         closeModal('importModal');
 
@@ -1381,9 +1395,6 @@ const SwarmSpaceUI = (function() {
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
         try {
-            // Parse markdown into items using store's pure parser
-            const parsed = SwarmSpaceStore.parseMarkdownImport(markdown);
-
             // Filter out duplicates and assign IDs
             const resourcesToAdd = [];
             const locationsToAdd = [];
@@ -1392,7 +1403,7 @@ const SwarmSpaceUI = (function() {
             parsed.resources.forEach(r => {
                 if (!resourceExists(r.name)) {
                     resourcesToAdd.push({ id: generateId(), ...r });
-                    if (r.status === 'scarce') imported.scarcities++;
+                    if (r.status === 'scarce' || r.status === 'critical') imported.scarcities++;
                     else imported.abundances++;
                 }
             });
@@ -1431,10 +1442,15 @@ const SwarmSpaceUI = (function() {
                 }
                 session = SwarmSpaceStore.getSession();
 
+                // Use startingWeekNumber for the first week if session has no weeks
+                const startingWeekNumber = parsed.startingWeekNumber || 1;
+
                 for (const project of parsed.unfinishedProjects) {
                     if (!project.remaining || project.remaining < 1) continue;
 
-                    const completionWeekNum = project.remaining;
+                    // Completion week is relative: startingWeekNumber + remaining - 1
+                    // (remaining=1 means it completes in the first week of the new session)
+                    const completionWeekNum = startingWeekNumber + project.remaining - 1;
 
                     // Create weeks up to the completion week number
                     while (session.weeks.length === 0 ||
@@ -1445,6 +1461,10 @@ const SwarmSpaceUI = (function() {
                             action: { type: 'discussion', text: '', comments: [] },
                             completions: []
                         };
+                        // Include weekNumber on the first week if session had no weeks
+                        if (session.weeks.length === 0) {
+                            newWeek.weekNumber = startingWeekNumber;
+                        }
                         updatedDoc = await api.appendItem('weeks', newWeek);
                         SwarmSpaceStore.setSession(updatedDoc);
                         session = SwarmSpaceStore.getSession();
@@ -1515,6 +1535,28 @@ const SwarmSpaceUI = (function() {
         document.getElementById('copyExportBtn').textContent = 'Copied!';
         setTimeout(() => {
             document.getElementById('copyExportBtn').textContent = 'Copy to Clipboard';
+        }, 2000);
+    }
+
+    /**
+     * Handle export for import (JSON)
+     */
+    function handleExportForImport() {
+        const json = SwarmSpaceStore.exportForImport();
+        document.getElementById('exportJsonOutput').value = json;
+        openModal('exportJsonModal');
+    }
+
+    /**
+     * Handle copy JSON export
+     */
+    function handleCopyJsonExport() {
+        const output = document.getElementById('exportJsonOutput');
+        output.select();
+        document.execCommand('copy');
+        document.getElementById('copyJsonExportBtn').textContent = 'Copied!';
+        setTimeout(() => {
+            document.getElementById('copyJsonExportBtn').textContent = 'Copy to Clipboard';
         }, 2000);
     }
 

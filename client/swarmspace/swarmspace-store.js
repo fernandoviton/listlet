@@ -544,6 +544,158 @@ const SwarmSpaceStore = (function() {
     }
 
     /**
+     * Export session as structured JSON for importing into a new session.
+     * Strips IDs (they'll get new ones on import), includes startingWeekNumber.
+     */
+    function exportForImport() {
+        const data = {
+            version: '1.0',
+            exportType: 'swarmspace-import',
+            startingWeekNumber: 1,
+            resources: [],
+            locations: [],
+            names: [],
+            unfinishedProjects: []
+        };
+
+        // startingWeekNumber: last week's weekNumber + 1 (or 1 if no weeks)
+        if (session.weeks.length > 0) {
+            const lastWeek = session.weeks[session.weeks.length - 1];
+            data.startingWeekNumber = (lastWeek.weekNumber || 1) + 1;
+        }
+
+        // Resources (strip IDs)
+        data.resources = session.resources.map(r => ({ name: r.name, status: r.status }));
+
+        // Locations (strip IDs)
+        data.locations = session.locations.map(l => {
+            const loc = { name: l.name, distance: l.distance || '', notes: l.notes || '' };
+            return loc;
+        });
+
+        // Names (strip IDs, preserve group)
+        data.names = session.names.map(n => {
+            const entry = { name: n.name, description: n.description || '' };
+            if (n.group) entry.group = n.group;
+            return entry;
+        });
+
+        // Unfinished projects: same derivation as exportMarkdown() lines 446-478
+        const starts = new Map();
+        session.weeks.forEach(week => {
+            if (week.action.type === 'project' && week.action.projectName) {
+                const name = week.action.projectName.toLowerCase();
+                starts.set(name, { name: week.action.projectName, startWeek: week.weekNumber });
+            }
+        });
+
+        const completions = new Map();
+        session.weeks.forEach(week => {
+            (week.completions || []).forEach(comp => {
+                const name = comp.projectName.toLowerCase();
+                completions.set(name, {
+                    name: comp.projectName,
+                    completionWeek: week.weekNumber,
+                    hasComments: !!(comp.comments && comp.comments.length > 0)
+                });
+            });
+        });
+
+        const allProjectNames = new Set([...starts.keys(), ...completions.keys()]);
+        const lastWeekNumber = session.weeks.length > 0
+            ? session.weeks[session.weeks.length - 1].weekNumber
+            : 0;
+
+        allProjectNames.forEach(nameLower => {
+            const start = starts.get(nameLower);
+            const completion = completions.get(nameLower);
+
+            // Only include unfinished projects (completion has no comments)
+            if (completion?.hasComments) return;
+
+            const completionWeek = completion?.completionWeek || null;
+            let remaining = null;
+            if (completionWeek && lastWeekNumber) {
+                remaining = completionWeek - lastWeekNumber;
+                if (remaining < 1) remaining = 1;
+            }
+
+            data.unfinishedProjects.push({
+                name: start?.name || completion?.name,
+                remaining
+            });
+        });
+
+        return JSON.stringify(data, null, 2);
+    }
+
+    /**
+     * Parse JSON export into importable items (pure function, no side effects).
+     * Validates the format and returns the same shape as parseMarkdownImport plus startingWeekNumber.
+     * @param {string} jsonString - The exported JSON text
+     * @returns {{ startingWeekNumber: number, resources: Array, locations: Array, names: Array, unfinishedProjects: Array }}
+     */
+    function parseJsonImport(jsonString) {
+        let data;
+        try {
+            data = JSON.parse(jsonString);
+        } catch (e) {
+            throw new Error('Invalid JSON format');
+        }
+
+        if (data.exportType !== 'swarmspace-import') {
+            throw new Error("This doesn't look like a SwarmSpace export. Use 'Export for Import' to get the right format.");
+        }
+
+        if (!data.version) {
+            throw new Error('Missing version');
+        }
+
+        if (parseFloat(data.version) > 1.0) {
+            throw new Error('Unsupported version');
+        }
+
+        const validStatuses = ['scarce', 'critical', 'abundant', 'sufficient'];
+
+        // Validate resources
+        const resources = (data.resources || []).map((r, i) => {
+            if (!r.name) throw new Error(`Resource at index ${i} is missing a name`);
+            if (!validStatuses.includes(r.status)) {
+                throw new Error(`Resource "${r.name}" has invalid status "${r.status}"`);
+            }
+            return { name: r.name, status: r.status };
+        });
+
+        // Validate locations
+        const locations = (data.locations || []).map((l, i) => {
+            if (!l.name) throw new Error(`Location at index ${i} is missing a name`);
+            return { name: l.name, distance: l.distance || '', notes: l.notes || '' };
+        });
+
+        // Validate names
+        const names = (data.names || []).map((n, i) => {
+            if (!n.name) throw new Error(`Name at index ${i} is missing a name`);
+            const entry = { name: n.name, description: n.description || '' };
+            if (n.group) entry.group = n.group;
+            return entry;
+        });
+
+        // Validate unfinished projects
+        const unfinishedProjects = (data.unfinishedProjects || []).map((p, i) => {
+            if (!p.name) throw new Error(`Project at index ${i} is missing a name`);
+            return { name: p.name, remaining: p.remaining || null };
+        });
+
+        return {
+            startingWeekNumber: data.startingWeekNumber || 1,
+            resources,
+            locations,
+            names,
+            unfinishedProjects
+        };
+    }
+
+    /**
      * Parse exported markdown into importable items (pure function, no side effects)
      * @param {string} markdown - The exported markdown text
      * @returns {{ resources: Array, locations: Array, names: Array, unfinishedProjects: Array }}
@@ -683,6 +835,8 @@ const SwarmSpaceStore = (function() {
         upsertName,
         deleteName,
         exportMarkdown,
-        parseMarkdownImport
+        exportForImport,
+        parseMarkdownImport,
+        parseJsonImport
     };
 })();

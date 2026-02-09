@@ -164,6 +164,34 @@ When an atomic operation fails (after all retries exhausted), a red error banner
 
 **Note**: As of Phase 2, `scheduleSave()` and `saveSession()` have been completely removed from the codebase. All operations now use atomic methods (POST/DELETE/PATCH).
 
+## Export/Import
+
+SwarmSpace supports two export formats:
+
+- **Export Markdown** — Human/LLM-readable summary of the full session (weekly log, resources, locations, names, projects)
+- **Export for Import** — Structured JSON designed for importing into a new session
+
+### JSON Export Schema
+
+```json
+{
+  "version": "1.0",
+  "exportType": "swarmspace-import",
+  "startingWeekNumber": 6,
+  "resources": [{ "name": "Water", "status": "scarce" }],
+  "locations": [{ "name": "Village", "distance": "2 days", "notes": "Friendly" }],
+  "names": [{ "name": "Alice", "description": "Leader", "group": "Villagers" }],
+  "unfinishedProjects": [{ "name": "Walls", "remaining": 2 }]
+}
+```
+
+### Import Behavior
+
+- Import accepts JSON from "Export for Import" only
+- Imports: resources, locations, names (with groups), unfinished projects as completion entries
+- Duplicates (by name, case-insensitive) are skipped
+- `startingWeekNumber`: new session weeks start from where the old session left off (default: last week + 1). When creating weeks for imported projects, the first week uses this number.
+
 ## Testing
 
 ### Running Tests
@@ -175,6 +203,16 @@ npm test
 ```
 
 ### Test Coverage
+
+Client-side store tests in `client/swarmspace/swarmspace-store.test.js` covering:
+- Markdown import parsing (resources, locations, names with groups, unfinished projects)
+- JSON import validation (format, version, required fields, invalid statuses)
+- Export/import roundtrips (markdown and JSON)
+
+```bash
+# Client store tests
+npx --prefix api jest --config '{}' --rootDir . client/swarmspace/swarmspace-store.test.js
+```
 
 The API has comprehensive tests in `api/tasks/index.test.js` covering:
 

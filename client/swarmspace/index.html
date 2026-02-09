@@ -13,6 +13,7 @@
             <h1>Swarm Space RPG</h1>
             <div class="header-actions">
                 <button class="btn btn-secondary" id="exportBtn">Export Markdown</button>
+                <button class="btn btn-secondary" id="exportJsonBtn">Export for Import</button>
             </div>
         </header>
 
@@ -149,6 +150,19 @@
         </div>
     </div>
 
+    <!-- Export for Import (JSON) modal -->
+    <div class="modal-overlay" id="exportJsonModal">
+        <div class="modal modal-wide">
+            <h3>Export for Import</h3>
+            <p class="modal-hint">Copy this and paste it into "Import from Previous Session" in your new session.</p>
+            <textarea id="exportJsonOutput" readonly rows="20"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="closeExportJsonBtn">Close</button>
+                <button class="modal-btn primary" id="copyJsonExportBtn">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Name modal -->
     <div class="modal-overlay" id="nameModal">
         <div class="modal">
@@ -181,7 +195,7 @@
     <div class="modal-overlay" id="importModal">
         <div class="modal modal-wide">
             <h3>Import from Previous Session</h3>
-            <p class="modal-hint">Paste the exported markdown from a previous session. This will import active projects, scarcities, abundances, locations, and names.</p>
+            <p class="modal-hint">Paste exported data from "Export for Import" in your previous session.</p>
             <textarea id="importInput" placeholder="Paste markdown here..." rows="15"></textarea>
             <div class="modal-buttons">
                 <button class="modal-btn secondary" id="cancelImportBtn">Cancel</button>
