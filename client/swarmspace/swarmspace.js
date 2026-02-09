@@ -1381,76 +1381,35 @@ const SwarmSpaceUI = (function() {
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
         try {
-            // Parse and collect items to add
+            // Parse markdown into items using store's pure parser
+            const parsed = SwarmSpaceStore.parseMarkdownImport(markdown);
+
+            // Filter out duplicates and assign IDs
             const resourcesToAdd = [];
             const locationsToAdd = [];
             const namesToAdd = [];
 
-            // Parse Scarcities
-            const scarcitiesMatch = markdown.match(/## Scarcities\n\n([\s\S]*?)(?=\n##|$)/);
-            if (scarcitiesMatch) {
-                const lines = scarcitiesMatch[1].split('\n').filter(l => l.startsWith('- '));
-                lines.forEach(line => {
-                    const name = line.replace(/^- /, '').trim();
-                    if (name && !resourceExists(name)) {
-                        resourcesToAdd.push({ id: generateId(), name, status: 'scarce' });
-                        imported.scarcities++;
-                    }
-                });
-            }
+            parsed.resources.forEach(r => {
+                if (!resourceExists(r.name)) {
+                    resourcesToAdd.push({ id: generateId(), ...r });
+                    if (r.status === 'scarce') imported.scarcities++;
+                    else imported.abundances++;
+                }
+            });
 
-            // Parse Abundances
-            const abundancesMatch = markdown.match(/## Abundances\n\n([\s\S]*?)(?=\n##|$)/);
-            if (abundancesMatch) {
-                const lines = abundancesMatch[1].split('\n').filter(l => l.startsWith('- '));
-                lines.forEach(line => {
-                    const name = line.replace(/^- /, '').trim();
-                    if (name && !resourceExists(name)) {
-                        resourcesToAdd.push({ id: generateId(), name, status: 'abundant' });
-                        imported.abundances++;
-                    }
-                });
-            }
+            parsed.locations.forEach(l => {
+                if (!locationExists(l.name)) {
+                    locationsToAdd.push({ id: generateId(), ...l });
+                    imported.locations++;
+                }
+            });
 
-            // Parse Locations
-            const locationsMatch = markdown.match(/## Locations\n\n\|[^\n]+\n\|[^\n]+\n([\s\S]*?)(?=\n##|$)/);
-            if (locationsMatch) {
-                const lines = locationsMatch[1].split('\n').filter(l => l.startsWith('|'));
-                lines.forEach(line => {
-                    const cols = line.split('|').map(c => c.trim()).filter(c => c);
-                    if (cols.length >= 1) {
-                        const name = cols[0];
-                        const distance = cols[1] !== '-' ? cols[1] : '';
-                        const notes = cols[2] !== '-' ? cols[2] : '';
-                        if (name && !locationExists(name)) {
-                            locationsToAdd.push({ id: generateId(), name, distance: distance || '', notes: notes || '' });
-                            imported.locations++;
-                        }
-                    }
-                });
-            }
-
-            // Parse Names
-            const namesMatch = markdown.match(/## Names\n\n([\s\S]*?)(?=\n##|$)/);
-            if (namesMatch) {
-                const lines = namesMatch[1].split('\n').filter(l => l.startsWith('- '));
-                lines.forEach(line => {
-                    // Match: - **Name**: Description or - Name
-                    const boldMatch = line.match(/^- \*\*(.+?)\*\*: (.+)$/);
-                    if (boldMatch) {
-                        if (!nameExists(boldMatch[1])) {
-                            namesToAdd.push({ id: generateId(), name: boldMatch[1], description: boldMatch[2] });
-                            imported.names++;
-                        }
-                    } else {
-                        const name = line.replace(/^- /, '').trim();
-                        if (name && !nameExists(name)) {
-                            namesToAdd.push({ id: generateId(), name, description: '' });
-                            imported.names++;
-                        }
-                    }
-                });
-            }
+            parsed.names.forEach(n => {
+                if (!nameExists(n.name)) {
+                    namesToAdd.push({ id: generateId(), ...n });
+                    imported.names++;
+                }
+            });
 
             // Use atomic appends for each item
             let updatedDoc = null;

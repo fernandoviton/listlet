@@ -543,6 +543,90 @@ const SwarmSpaceStore = (function() {
         return md;
     }
 
+    /**
+     * Parse exported markdown into importable items (pure function, no side effects)
+     * @param {string} markdown - The exported markdown text
+     * @returns {{ resources: Array, locations: Array, names: Array }}
+     */
+    function parseMarkdownImport(markdown) {
+        const resources = [];
+        const locations = [];
+        const names = [];
+
+        // Parse Scarcities
+        const scarcitiesMatch = markdown.match(/## Scarcities\n\n([\s\S]*?)(?=\n## (?!#)|$)/);
+        if (scarcitiesMatch) {
+            const lines = scarcitiesMatch[1].split('\n').filter(l => l.startsWith('- '));
+            lines.forEach(line => {
+                const name = line.replace(/^- /, '').trim();
+                if (name) {
+                    resources.push({ name, status: 'scarce' });
+                }
+            });
+        }
+
+        // Parse Abundances
+        const abundancesMatch = markdown.match(/## Abundances\n\n([\s\S]*?)(?=\n## (?!#)|$)/);
+        if (abundancesMatch) {
+            const lines = abundancesMatch[1].split('\n').filter(l => l.startsWith('- '));
+            lines.forEach(line => {
+                const name = line.replace(/^- /, '').trim();
+                if (name) {
+                    resources.push({ name, status: 'abundant' });
+                }
+            });
+        }
+
+        // Parse Locations
+        const locationsMatch = markdown.match(/## Locations\n\n\|[^\n]+\n\|[^\n]+\n([\s\S]*?)(?=\n## (?!#)|$)/);
+        if (locationsMatch) {
+            const lines = locationsMatch[1].split('\n').filter(l => l.startsWith('|'));
+            lines.forEach(line => {
+                const cols = line.split('|').map(c => c.trim()).filter(c => c);
+                if (cols.length >= 1) {
+                    const name = cols[0];
+                    const distance = cols[1] !== '-' ? cols[1] : '';
+                    const notes = cols[2] !== '-' ? cols[2] : '';
+                    if (name) {
+                        locations.push({ name, distance: distance || '', notes: notes || '' });
+                    }
+                }
+            });
+        }
+
+        // Parse Names (negative lookahead: stop at next h2, not h3 group headers)
+        const namesMatch = markdown.match(/## Names\n\n([\s\S]*?)(?=\n## (?!#)|$)/);
+        if (namesMatch) {
+            const lines = namesMatch[1].split('\n');
+            let currentGroup = '';
+            lines.forEach(line => {
+                // Track group headers (### GroupName)
+                const groupMatch = line.match(/^### (.+)$/);
+                if (groupMatch) {
+                    currentGroup = groupMatch[1].trim();
+                    return;
+                }
+                if (!line.startsWith('- ')) return;
+                // Match: - **Name**: Description or - Name
+                const boldMatch = line.match(/^- \*\*(.+?)\*\*: (.+)$/);
+                if (boldMatch) {
+                    const entry = { name: boldMatch[1], description: boldMatch[2] };
+                    if (currentGroup) entry.group = currentGroup;
+                    names.push(entry);
+                } else {
+                    const name = line.replace(/^- /, '').trim();
+                    if (name) {
+                        const entry = { name, description: '' };
+                        if (currentGroup) entry.group = currentGroup;
+                        names.push(entry);
+                    }
+                }
+            });
+        }
+
+        return { resources, locations, names };
+    }
+
     // Public API
     return {
         getSession,
@@ -566,6 +650,7 @@ const SwarmSpaceStore = (function() {
         deleteLocation,
         upsertName,
         deleteName,
-        exportMarkdown
+        exportMarkdown,
+        parseMarkdownImport
     };
 })();
