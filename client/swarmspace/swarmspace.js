@@ -1576,7 +1576,7 @@ const SwarmSpaceUI = (function() {
             await importIntoSession(newApi, exportJson);
 
             progressMsg.textContent = 'Done! Redirecting...';
-            window.location.href = '?list=' + encodeURIComponent(trimmed);
+            window.location.replace('?list=' + encodeURIComponent(trimmed));
         } catch (error) {
             closeModal('progressModal');
             showError('Failed to create next session. ' + error.message, error);
