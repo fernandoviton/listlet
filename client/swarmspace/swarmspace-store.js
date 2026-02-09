@@ -546,12 +546,13 @@ const SwarmSpaceStore = (function() {
     /**
      * Parse exported markdown into importable items (pure function, no side effects)
      * @param {string} markdown - The exported markdown text
-     * @returns {{ resources: Array, locations: Array, names: Array }}
+     * @returns {{ resources: Array, locations: Array, names: Array, unfinishedProjects: Array }}
      */
     function parseMarkdownImport(markdown) {
         const resources = [];
         const locations = [];
         const names = [];
+        const unfinishedProjects = [];
 
         // Parse Scarcities
         const scarcitiesMatch = markdown.match(/## Scarcities\n\n([\s\S]*?)(?=\n## (?!#)|$)/);
@@ -624,7 +625,38 @@ const SwarmSpaceStore = (function() {
             });
         }
 
-        return { resources, locations, names };
+        // Parse last week number from Weekly Log (needed for remaining duration calc)
+        let lastWeekNumber = 0;
+        const weekHeaders = markdown.match(/### Week (\d+)/g);
+        if (weekHeaders) {
+            weekHeaders.forEach(h => {
+                const num = parseInt(h.match(/\d+/)[0], 10);
+                if (num > lastWeekNumber) lastWeekNumber = num;
+            });
+        }
+
+        // Parse Projects - find unfinished ones (marked with ...)
+        const projectsMatch = markdown.match(/## Projects\n\n([\s\S]*?)(?=\n## (?!#)|$)/);
+        if (projectsMatch) {
+            const lines = projectsMatch[1].split('\n').filter(l => l.startsWith('- '));
+            lines.forEach(line => {
+                // Format: - ProjectName (Week X → Week Y) ...  or  ✓
+                const m = line.match(/^- (.+?) \((Week (\d+)|\?) → (Week (\d+)|\?)\) (\.\.\.|✓)$/);
+                if (m && m[6] === '...') {
+                    const name = m[1];
+                    const startWeek = m[3] ? parseInt(m[3], 10) : null;
+                    const completionWeek = m[5] ? parseInt(m[5], 10) : null;
+                    let remaining = null;
+                    if (completionWeek && lastWeekNumber) {
+                        remaining = completionWeek - lastWeekNumber;
+                        if (remaining < 1) remaining = 1;
+                    }
+                    unfinishedProjects.push({ name, startWeek, completionWeek, remaining });
+                }
+            });
+        }
+
+        return { resources, locations, names, unfinishedProjects };
     }
 
     // Public API

@@ -130,7 +130,73 @@ describe('parseMarkdownImport', () => {
 
     test('returns empty arrays when no sections found', () => {
         const result = store.parseMarkdownImport('# Just a title\n\nSome text.');
-        expect(result).toEqual({ resources: [], locations: [], names: [] });
+        expect(result).toEqual({ resources: [], locations: [], names: [], unfinishedProjects: [] });
+    });
+
+    test('parses unfinished projects with remaining duration', () => {
+        const md = `## Weekly Log
+
+### Week 1
+
+- **Event:** Something
+
+### Week 5
+
+- **Event:** Latest
+
+## Projects
+
+- Walls (Week 2 → Week 7) ...
+- Bridge (Week 1 → Week 3) ✓
+- Aqueduct (Week 4 → Week 10) ...
+`;
+        const result = store.parseMarkdownImport(md);
+        // Only unfinished projects (not Bridge which is ✓)
+        expect(result.unfinishedProjects).toHaveLength(2);
+        expect(result.unfinishedProjects[0]).toEqual({
+            name: 'Walls', startWeek: 2, completionWeek: 7, remaining: 2  // 7 - 5
+        });
+        expect(result.unfinishedProjects[1]).toEqual({
+            name: 'Aqueduct', startWeek: 4, completionWeek: 10, remaining: 5  // 10 - 5
+        });
+    });
+
+    test('remaining is clamped to at least 1', () => {
+        const md = `## Weekly Log
+
+### Week 5
+
+- **Event:** Latest
+
+## Projects
+
+- Overdue (Week 1 → Week 3) ...
+`;
+        const result = store.parseMarkdownImport(md);
+        expect(result.unfinishedProjects).toHaveLength(1);
+        // 3 - 5 = -2, clamped to 1
+        expect(result.unfinishedProjects[0].remaining).toBe(1);
+    });
+
+    test('handles projects with unknown week numbers', () => {
+        const md = `## Projects
+
+- Mystery (? → ?) ...
+`;
+        const result = store.parseMarkdownImport(md);
+        expect(result.unfinishedProjects).toHaveLength(1);
+        expect(result.unfinishedProjects[0]).toEqual({
+            name: 'Mystery', startWeek: null, completionWeek: null, remaining: null
+        });
+    });
+
+    test('no projects section returns empty array', () => {
+        const md = `## Names
+
+- Alice
+`;
+        const result = store.parseMarkdownImport(md);
+        expect(result.unfinishedProjects).toEqual([]);
     });
 });
 
@@ -197,5 +263,35 @@ describe('export/import roundtrip', () => {
                 expect.objectContaining({ name: 'Cave' })
             ])
         );
+    });
+
+    test('unfinished projects survive export then import with correct remaining', () => {
+        // Create 5 weeks
+        for (let i = 0; i < 5; i++) store.addWeek();
+        const session = store.getSession();
+
+        // Start a project in week 2 with duration 5 (completes week 7)
+        store.startProject(session.weeks[1].id, 'Walls', 5);
+        // Start a project in week 3 with duration 2 (completes week 5) - will be "done"
+        store.startProject(session.weeks[2].id, 'Bridge', 2);
+
+        // Add a comment to Bridge's completion to mark it as truly completed
+        const updatedSession = store.getSession();
+        const week5 = updatedSession.weeks.find(w => w.weekNumber === 5);
+        const bridgeCompletion = week5.completions.find(c => c.projectName === 'Bridge');
+        store.addComment(week5.id, `completion:${bridgeCompletion.id}`, 'Built successfully');
+
+        // Set current week to 5
+        store.setCurrentWeek(updatedSession.weeks.find(w => w.weekNumber === 5).id);
+
+        const md = store.exportMarkdown();
+        const parsed = store.parseMarkdownImport(md);
+
+        // Bridge is completed (has comments), should not appear
+        // Walls is unfinished, completion at week 7, last week is 7 (weeks were created up to 7)
+        // remaining = 7 - 7 = 0, clamped to 1
+        expect(parsed.unfinishedProjects).toHaveLength(1);
+        expect(parsed.unfinishedProjects[0].name).toBe('Walls');
+        expect(parsed.unfinishedProjects[0].remaining).toBeGreaterThanOrEqual(1);
     });
 });

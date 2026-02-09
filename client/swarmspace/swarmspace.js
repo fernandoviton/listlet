@@ -1360,7 +1360,7 @@ const SwarmSpaceUI = (function() {
         closeModal('importModal');
 
         let session = SwarmSpaceStore.getSession();
-        let imported = { scarcities: 0, abundances: 0, locations: 0, names: 0 };
+        let imported = { projects: 0, scarcities: 0, abundances: 0, locations: 0, names: 0 };
 
         // Helper to check if resource exists
         const resourceExists = (name) => session.resources.some(r =>
@@ -1423,6 +1423,49 @@ const SwarmSpaceUI = (function() {
                 updatedDoc = await api.appendItem('names', name);
             }
 
+            // Import unfinished projects: create weeks with completion entries
+            if (parsed.unfinishedProjects.length > 0) {
+                // Refresh session state after above appends
+                if (updatedDoc) {
+                    SwarmSpaceStore.setSession(updatedDoc);
+                }
+                session = SwarmSpaceStore.getSession();
+
+                for (const project of parsed.unfinishedProjects) {
+                    if (!project.remaining || project.remaining < 1) continue;
+
+                    const completionWeekNum = project.remaining;
+
+                    // Create weeks up to the completion week number
+                    while (session.weeks.length === 0 ||
+                           session.weeks[session.weeks.length - 1].weekNumber < completionWeekNum) {
+                        const newWeek = {
+                            id: generateId(),
+                            event: { text: '', comments: [] },
+                            action: { type: 'discussion', text: '', comments: [] },
+                            completions: []
+                        };
+                        updatedDoc = await api.appendItem('weeks', newWeek);
+                        SwarmSpaceStore.setSession(updatedDoc);
+                        session = SwarmSpaceStore.getSession();
+                    }
+
+                    // Append completion to the target week
+                    const targetWeekIndex = session.weeks.findIndex(w => w.weekNumber === completionWeekNum);
+                    if (targetWeekIndex !== -1) {
+                        const completion = {
+                            id: generateId(),
+                            projectName: project.name,
+                            comments: []
+                        };
+                        updatedDoc = await api.appendItem(`weeks.${targetWeekIndex}.completions`, completion);
+                        SwarmSpaceStore.setSession(updatedDoc);
+                        session = SwarmSpaceStore.getSession();
+                        imported.projects++;
+                    }
+                }
+            }
+
             // Refresh from server to get final state
             if (updatedDoc) {
                 SwarmSpaceStore.setSession(updatedDoc);
@@ -1437,6 +1480,7 @@ const SwarmSpaceUI = (function() {
 
             // Show summary
             const parts = [];
+            if (imported.projects) parts.push(`${imported.projects} unfinished project(s)`);
             if (imported.scarcities) parts.push(`${imported.scarcities} scarcity(ies)`);
             if (imported.abundances) parts.push(`${imported.abundances} abundance(s)`);
             if (imported.locations) parts.push(`${imported.locations} location(s)`);
