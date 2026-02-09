@@ -558,10 +558,12 @@ const SwarmSpaceStore = (function() {
             unfinishedProjects: []
         };
 
-        // startingWeekNumber: last week's weekNumber + 1 (or 1 if no weeks)
+        // startingWeekNumber: current week's weekNumber + 1 (or 1 if no weeks)
         if (session.weeks.length > 0) {
-            const lastWeek = session.weeks[session.weeks.length - 1];
-            data.startingWeekNumber = (lastWeek.weekNumber || 1) + 1;
+            const currentWeekId = getCurrentWeekId();
+            const currentWeek = currentWeekId ? getWeek(currentWeekId) : null;
+            const currentWeekNumber = currentWeek ? currentWeek.weekNumber : session.weeks[session.weeks.length - 1].weekNumber;
+            data.startingWeekNumber = (currentWeekNumber || 1) + 1;
         }
 
         // Resources (strip IDs)
@@ -602,9 +604,11 @@ const SwarmSpaceStore = (function() {
         });
 
         const allProjectNames = new Set([...starts.keys(), ...completions.keys()]);
-        const lastWeekNumber = session.weeks.length > 0
-            ? session.weeks[session.weeks.length - 1].weekNumber
-            : 0;
+        const currentWeekId = getCurrentWeekId();
+        const currentWeekObj = currentWeekId ? getWeek(currentWeekId) : null;
+        const currentWeekNumber = currentWeekObj
+            ? currentWeekObj.weekNumber
+            : (session.weeks.length > 0 ? session.weeks[session.weeks.length - 1].weekNumber : 0);
 
         allProjectNames.forEach(nameLower => {
             const start = starts.get(nameLower);
@@ -615,8 +619,8 @@ const SwarmSpaceStore = (function() {
 
             const completionWeek = completion?.completionWeek || null;
             let remaining = null;
-            if (completionWeek && lastWeekNumber) {
-                remaining = completionWeek - lastWeekNumber;
+            if (completionWeek && currentWeekNumber) {
+                remaining = completionWeek - currentWeekNumber;
                 if (remaining < 1) remaining = 1;
             }
 

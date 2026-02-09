@@ -363,10 +363,12 @@ describe('exportForImport', () => {
         expect(jsonStr).not.toContain('"id"');
     });
 
-    test('startingWeekNumber equals lastWeek + 1', () => {
+    test('startingWeekNumber equals currentWeek + 1', () => {
         store.addWeek(); // week 1
         store.addWeek(); // week 2
         store.addWeek(); // week 3
+        const session = store.getSession();
+        store.setCurrentWeek(session.weeks[2].id); // set current to week 3
 
         const json = store.exportForImport();
         const data = JSON.parse(json);
@@ -385,6 +387,24 @@ describe('exportForImport', () => {
         // Walls should be unfinished (no comments on completion)
         expect(data.unfinishedProjects).toHaveLength(1);
         expect(data.unfinishedProjects[0].name).toBe('Walls');
+    });
+
+    test('startingWeekNumber uses current week, not last week', () => {
+        // Create 3 weeks, then a project that creates weeks up to 7
+        for (let i = 0; i < 3; i++) store.addWeek();
+        const session = store.getSession();
+        store.startProject(session.weeks[0].id, 'Walls', 5); // completes at week 6
+
+        // Set current week to week 3 (not the last week which is 6)
+        store.setCurrentWeek(session.weeks[2].id);
+
+        const json = store.exportForImport();
+        const data = JSON.parse(json);
+
+        // Should be current (3) + 1 = 4, not last (6) + 1 = 7
+        expect(data.startingWeekNumber).toBe(4);
+        // Remaining should be 6 - 3 = 3, not 6 - 6 = 1
+        expect(data.unfinishedProjects[0].remaining).toBe(3);
     });
 
     test('excludes completed projects', () => {
