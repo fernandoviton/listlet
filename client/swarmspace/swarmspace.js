@@ -198,6 +198,9 @@ const SwarmSpaceUI = (function() {
         document.getElementById('doImportBtn').addEventListener('click', handleImport);
         setupModalBackdropDismiss('importModal');
 
+        // Create next session
+        document.getElementById('createNextSessionBtn').addEventListener('click', handleCreateNextSession);
+
         // Summary panels (delegation)
         document.getElementById('projectsSummary').addEventListener('click', handleProjectsClick);
         document.getElementById('locationsSummary').addEventListener('click', handleLocationsClick);
@@ -1357,23 +1360,17 @@ const SwarmSpaceUI = (function() {
     }
 
     /**
-     * Handle import from previous session (atomic operations)
+     * Import parsed JSON data into a target session via its API (atomic operations).
+     * @param {object} targetApi - API object (from createApi) for the target session
+     * @param {string} jsonString - JSON export string from exportForImport()
+     * @returns {{ projects: number, scarcities: number, abundances: number, locations: number, names: number }}
      */
-    async function handleImport() {
-        const input = document.getElementById('importInput').value;
-        if (!input.trim()) return;
+    async function importIntoSession(targetApi, jsonString) {
+        const parsed = SwarmSpaceStore.parseJsonImport(jsonString);
 
-        let parsed;
-        try {
-            parsed = SwarmSpaceStore.parseJsonImport(input);
-        } catch (error) {
-            showError(error.message, error);
-            return;
-        }
+        // Fetch current state of target session
+        let session = await targetApi.fetchTasks(null);
 
-        closeModal('importModal');
-
-        let session = SwarmSpaceStore.getSession();
         let imported = { projects: 0, scarcities: 0, abundances: 0, locations: 0, names: 0 };
 
         // Helper to check if resource exists
@@ -1394,112 +1391,118 @@ const SwarmSpaceUI = (function() {
         // Helper to generate ID
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
+        // Filter out duplicates and assign IDs
+        const resourcesToAdd = [];
+        const locationsToAdd = [];
+        const namesToAdd = [];
+
+        parsed.resources.forEach(r => {
+            if (!resourceExists(r.name)) {
+                resourcesToAdd.push({ id: generateId(), ...r });
+                if (r.status === 'scarce' || r.status === 'critical') imported.scarcities++;
+                else imported.abundances++;
+            }
+        });
+
+        parsed.locations.forEach(l => {
+            if (!locationExists(l.name)) {
+                locationsToAdd.push({ id: generateId(), ...l });
+                imported.locations++;
+            }
+        });
+
+        parsed.names.forEach(n => {
+            if (!nameExists(n.name)) {
+                namesToAdd.push({ id: generateId(), ...n });
+                imported.names++;
+            }
+        });
+
+        // Use atomic appends for each item
+        for (const resource of resourcesToAdd) {
+            session = await targetApi.appendItem('resources', resource);
+        }
+        for (const location of locationsToAdd) {
+            session = await targetApi.appendItem('locations', location);
+        }
+        for (const name of namesToAdd) {
+            session = await targetApi.appendItem('names', name);
+        }
+
+        // Import unfinished projects: create weeks with completion entries
+        if (parsed.unfinishedProjects.length > 0) {
+            // Use startingWeekNumber for the first week if session has no weeks
+            const startingWeekNumber = parsed.startingWeekNumber || 1;
+
+            // Helper to check if a completion with this project name already exists
+            const completionExists = (name) => session.weeks.some(w =>
+                (w.completions || []).some(c => c.projectName.toLowerCase() === name.toLowerCase())
+            );
+
+            for (const project of parsed.unfinishedProjects) {
+                if (!project.remaining || project.remaining < 1) continue;
+                if (completionExists(project.name)) continue;
+
+                // Completion week is relative: startingWeekNumber + remaining - 1
+                // (remaining=1 means it completes in the first week of the new session)
+                const completionWeekNum = startingWeekNumber + project.remaining - 1;
+
+                // Create weeks up to the completion week number
+                while (session.weeks.length === 0 ||
+                       session.weeks[session.weeks.length - 1].weekNumber < completionWeekNum) {
+                    const newWeek = {
+                        id: generateId(),
+                        event: { text: '', comments: [] },
+                        action: { type: 'discussion', text: '', comments: [] },
+                        completions: []
+                    };
+                    // Include weekNumber on the first week if session had no weeks
+                    if (session.weeks.length === 0) {
+                        newWeek.weekNumber = startingWeekNumber;
+                    }
+                    session = await targetApi.appendItem('weeks', newWeek);
+                }
+
+                // Append completion to the target week
+                const targetWeekIndex = session.weeks.findIndex(w => w.weekNumber === completionWeekNum);
+                if (targetWeekIndex !== -1) {
+                    const completion = {
+                        id: generateId(),
+                        projectName: project.name,
+                        comments: []
+                    };
+                    session = await targetApi.appendItem(`weeks.${targetWeekIndex}.completions`, completion);
+                    imported.projects++;
+                }
+            }
+        }
+
+        return imported;
+    }
+
+    /**
+     * Handle import from previous session (uses importIntoSession)
+     */
+    async function handleImport() {
+        const input = document.getElementById('importInput').value;
+        if (!input.trim()) return;
+
+        // Validate JSON before closing modal
         try {
-            // Filter out duplicates and assign IDs
-            const resourcesToAdd = [];
-            const locationsToAdd = [];
-            const namesToAdd = [];
+            SwarmSpaceStore.parseJsonImport(input);
+        } catch (error) {
+            showError(error.message, error);
+            return;
+        }
 
-            parsed.resources.forEach(r => {
-                if (!resourceExists(r.name)) {
-                    resourcesToAdd.push({ id: generateId(), ...r });
-                    if (r.status === 'scarce' || r.status === 'critical') imported.scarcities++;
-                    else imported.abundances++;
-                }
-            });
+        closeModal('importModal');
 
-            parsed.locations.forEach(l => {
-                if (!locationExists(l.name)) {
-                    locationsToAdd.push({ id: generateId(), ...l });
-                    imported.locations++;
-                }
-            });
+        try {
+            const imported = await importIntoSession(api, input);
 
-            parsed.names.forEach(n => {
-                if (!nameExists(n.name)) {
-                    namesToAdd.push({ id: generateId(), ...n });
-                    imported.names++;
-                }
-            });
-
-            // Use atomic appends for each item
-            let updatedDoc = null;
-            for (const resource of resourcesToAdd) {
-                updatedDoc = await api.appendItem('resources', resource);
-            }
-            for (const location of locationsToAdd) {
-                updatedDoc = await api.appendItem('locations', location);
-            }
-            for (const name of namesToAdd) {
-                updatedDoc = await api.appendItem('names', name);
-            }
-
-            // Import unfinished projects: create weeks with completion entries
-            if (parsed.unfinishedProjects.length > 0) {
-                // Refresh session state after above appends
-                if (updatedDoc) {
-                    SwarmSpaceStore.setSession(updatedDoc);
-                }
-                session = SwarmSpaceStore.getSession();
-
-                // Use startingWeekNumber for the first week if session has no weeks
-                const startingWeekNumber = parsed.startingWeekNumber || 1;
-
-                // Helper to check if a completion with this project name already exists
-                const completionExists = (name) => session.weeks.some(w =>
-                    (w.completions || []).some(c => c.projectName.toLowerCase() === name.toLowerCase())
-                );
-
-                for (const project of parsed.unfinishedProjects) {
-                    if (!project.remaining || project.remaining < 1) continue;
-                    if (completionExists(project.name)) continue;
-
-                    // Completion week is relative: startingWeekNumber + remaining - 1
-                    // (remaining=1 means it completes in the first week of the new session)
-                    const completionWeekNum = startingWeekNumber + project.remaining - 1;
-
-                    // Create weeks up to the completion week number
-                    while (session.weeks.length === 0 ||
-                           session.weeks[session.weeks.length - 1].weekNumber < completionWeekNum) {
-                        const newWeek = {
-                            id: generateId(),
-                            event: { text: '', comments: [] },
-                            action: { type: 'discussion', text: '', comments: [] },
-                            completions: []
-                        };
-                        // Include weekNumber on the first week if session had no weeks
-                        if (session.weeks.length === 0) {
-                            newWeek.weekNumber = startingWeekNumber;
-                        }
-                        updatedDoc = await api.appendItem('weeks', newWeek);
-                        SwarmSpaceStore.setSession(updatedDoc);
-                        session = SwarmSpaceStore.getSession();
-                    }
-
-                    // Append completion to the target week
-                    const targetWeekIndex = session.weeks.findIndex(w => w.weekNumber === completionWeekNum);
-                    if (targetWeekIndex !== -1) {
-                        const completion = {
-                            id: generateId(),
-                            projectName: project.name,
-                            comments: []
-                        };
-                        updatedDoc = await api.appendItem(`weeks.${targetWeekIndex}.completions`, completion);
-                        SwarmSpaceStore.setSession(updatedDoc);
-                        session = SwarmSpaceStore.getSession();
-                        imported.projects++;
-                    }
-                }
-            }
-
-            // Refresh from server to get final state
-            if (updatedDoc) {
-                SwarmSpaceStore.setSession(updatedDoc);
-            } else {
-                // No items added, refresh anyway
-                const freshDoc = await api.fetchTasks();
-                SwarmSpaceStore.setSession(freshDoc);
-            }
+            // Refresh local store from server
+            const freshDoc = await api.fetchTasks();
+            SwarmSpaceStore.setSession(freshDoc);
 
             renderAll();
             SwarmSpaceSync.resetActivity();
@@ -1519,6 +1522,53 @@ const SwarmSpaceUI = (function() {
             }
         } catch (error) {
             showError('Failed to import data. Please try again.', error);
+        }
+    }
+
+    /**
+     * Handle creating next session: export, create, import, navigate
+     */
+    async function handleCreateNextSession() {
+        const currentName = api.listName;
+        const match = currentName.match(/^(.*?)(\d+)$/);
+        const proposedName = match ? match[1] + (parseInt(match[2], 10) + 1) : currentName + '2';
+
+        const newName = prompt('New session name:', proposedName);
+        if (!newName || !newName.trim()) return;
+        const trimmed = newName.trim();
+
+        if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+            alert('Name can only contain letters, numbers, hyphens, and underscores.');
+            return;
+        }
+
+        try {
+            const checkResp = await fetch(`${CONFIG.API_BASE_SWARM}/${trimmed}`);
+            if (checkResp.ok) {
+                alert(`Session "${trimmed}" already exists. Please choose a different name.`);
+                return;
+            }
+        } catch (e) { /* network error — proceed */ }
+
+        const exportJson = SwarmSpaceStore.exportForImport();
+
+        try {
+            // Create empty session on server (PUT required before atomic appends work)
+            const defaultSession = SwarmSpaceStore.createDefaultSession();
+            const putResp = await fetch(`${CONFIG.API_BASE_SWARM}/${trimmed}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(defaultSession)
+            });
+            if (!putResp.ok) throw new Error('Failed to create session: ' + putResp.status);
+
+            // Import into new session
+            const newApi = createApi(trimmed, CONFIG.API_BASE_SWARM);
+            await importIntoSession(newApi, exportJson);
+
+            window.location.href = '?list=' + encodeURIComponent(trimmed);
+        } catch (error) {
+            showError('Failed to create next session. ' + error.message, error);
         }
     }
 

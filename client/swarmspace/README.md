@@ -47,6 +47,9 @@ Updated handlers to use atomic operations:
 - `handleSaveResource()` - Uses `api.appendItem('resources', resource)`
 - `handleSaveLocation()` - Uses `api.appendItem('locations', location)`
 - `handleSaveName()` - Uses `api.appendItem('names', nameEntry)`
+- `handleImport()` - Uses `importIntoSession(api, input)` for atomic import
+- `handleCreateNextSession()` - Exports current session, creates new session via PUT, imports via `importIntoSession()`, navigates to new session
+- `importIntoSession(targetApi, jsonString)` - Extracted import logic that works against any API target (used by both `handleImport` and `handleCreateNextSession`)
 - Delete handlers use `api.deleteItem()` for respective arrays
 
 ### All Operations Now Atomic (Phase 2)
@@ -192,6 +195,19 @@ SwarmSpace supports two export formats:
 - Duplicates (by name, case-insensitive) are skipped
 - `startingWeekNumber`: new session weeks start from where the old session left off (default: last week + 1). When creating weeks for imported projects, the first week uses this number.
 
+### Create Next Session
+
+One-click workflow that automates: export → create new session → import → navigate.
+
+1. Proposes a name by incrementing trailing number (`session5` → `session6`, `game` → `game2`)
+2. User confirms/edits via `prompt()`
+3. Validates name format (`[a-zA-Z0-9_-]+`)
+4. Checks if session already exists (GET, abort if 200)
+5. Exports current session via `exportForImport()`
+6. Creates empty session on server (PUT with default session)
+7. Imports data into new session via `importIntoSession()`
+8. Navigates to `?list={newName}`
+
 ## Testing
 
 ### Running Tests
@@ -205,6 +221,7 @@ npm test
 ### Test Coverage
 
 Client-side store tests in `client/swarmspace/swarmspace-store.test.js` covering:
+- `createDefaultSession` (structure, deep cloning, consistency with `setSession(null)`)
 - Markdown import parsing (resources, locations, names with groups, unfinished projects)
 - JSON import validation (format, version, required fields, invalid statuses)
 - Export/import roundtrips (markdown and JSON)
@@ -274,3 +291,7 @@ Tests: 40 passed
 6. **startingWeek restriction**: Add 2+ weeks, verify startingWeek input becomes disabled
 7. **Resources**: Verify resources can only be added/deleted, not edited
 8. **No PUT calls**: After initial load, verify no PUT requests in Network tab (only GET/POST/DELETE/PATCH)
+9. **Create next session**: Open `?list=test5`, add data, click "Create next session", verify proposed name is `test6`, confirm, new session has imported data
+10. **Create next session — existing name**: Verify alert and abort when session already exists
+11. **Create next session — invalid name**: Verify rejected with alert for names with special characters
+12. **Create next session — no trailing number**: Open `?list=game`, verify proposed name is `game2`

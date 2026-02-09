@@ -30,10 +30,17 @@ const SwarmSpaceStore = (function() {
     }
 
     /**
+     * Create a deep clone of the default empty session
+     */
+    function createDefaultSession() {
+        return JSON.parse(JSON.stringify(DEFAULT_SESSION));
+    }
+
+    /**
      * Set the full session data
      */
     function setSession(data) {
-        session = data || JSON.parse(JSON.stringify(DEFAULT_SESSION));
+        session = data || createDefaultSession();
         // Ensure all required fields exist
         session.weeks = session.weeks || [];
         session.resources = session.resources || [];
@@ -826,6 +833,7 @@ const SwarmSpaceStore = (function() {
     return {
         getSession,
         setSession,
+        createDefaultSession,
         updateMeta,
         addWeek,
         getWeek,

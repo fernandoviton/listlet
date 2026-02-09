@@ -215,6 +215,7 @@ cd api && npm test
 - **Create session:** `/swarmspace/?list=my-campaign`
 - **Multi-user:** Changes sync every 15 seconds
 - **Features:** Week tracking, resources, locations, NPCs, comments
+- **Create next session:** One-click export + create + import into a new session (auto-increments session name)
 
 ## Managing Data via CLI
 

@@ -24,6 +24,40 @@ eval(wrappedCode);
 
 const store = global.SwarmSpaceStore;
 
+// ============ createDefaultSession ============
+
+describe('createDefaultSession', () => {
+    test('returns a valid empty session structure', () => {
+        const session = store.createDefaultSession();
+        expect(session).toEqual({
+            title: '',
+            setting: '',
+            currentWeekId: null,
+            weeks: [],
+            resources: [],
+            locations: [],
+            names: []
+        });
+    });
+
+    test('returns a deep clone (mutations do not affect future calls)', () => {
+        const session1 = store.createDefaultSession();
+        session1.title = 'modified';
+        session1.weeks.push({ id: 'fake' });
+
+        const session2 = store.createDefaultSession();
+        expect(session2.title).toBe('');
+        expect(session2.weeks).toEqual([]);
+    });
+
+    test('setSession(null) produces same structure as createDefaultSession', () => {
+        store.setSession(null);
+        const fromSet = store.getSession();
+        const fromCreate = store.createDefaultSession();
+        expect(fromSet).toEqual(fromCreate);
+    });
+});
+
 // ============ parseMarkdownImport ============
 
 describe('parseMarkdownImport', () => {
