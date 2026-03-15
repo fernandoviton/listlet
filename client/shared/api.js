@@ -61,10 +61,16 @@ function createApi(listName, baseUrl) {
                 return current;
             }
 
-            // 1. GET latest server data
+            // 1. GET latest server data (or start fresh if it doesn't exist yet)
             const getResponse = await fetch(`${baseUrl}/${listName}`);
-            if (!getResponse.ok) throw new Error('Failed to fetch latest tasks');
-            const serverTasks = await getResponse.json();
+            let serverTasks;
+            if (getResponse.status === 404) {
+                serverTasks = {};
+            } else if (!getResponse.ok) {
+                throw new Error('Failed to fetch latest tasks');
+            } else {
+                serverTasks = await getResponse.json();
+            }
 
             // 2. Apply the mutation to server data
             if (mutate) mutate(serverTasks);

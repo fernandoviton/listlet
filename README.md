@@ -75,14 +75,17 @@ URL: /quicktrip/?list=trip1   →  API: /api/store/quicktrip/trip1    →  quick
 
 ## File Structure
 ```
-checklist-spa/
+listlet/
 ├── client/                     # Frontend SPA
 │   ├── index.html              # Router (redirects to /home/ or /tasks/)
 │   ├── config.js               # API configuration
+│   ├── jest.config.js
+│   ├── package.json
 │   ├── staticwebapp.config.json # SWA routing config
 │   │
 │   ├── shared/                 # Shared utilities
 │   │   ├── api.js              # Fetch/save logic with atomic operations
+│   │   ├── api.test.js         # API client tests
 │   │   ├── utils.js            # escapeHtml, generateId, getListName
 │   │   └── common.css          # Base styles
 │   │
@@ -101,6 +104,7 @@ checklist-spa/
 │   │   ├── swarmspace.js       # UI logic
 │   │   ├── swarmspace.css
 │   │   ├── swarmspace-store.js # State management
+│   │   ├── swarmspace-store.test.js # Tests
 │   │   └── sync.js             # Multi-user sync polling
 │   │
 │   └── quicktrip/              # Trip date planner
@@ -113,6 +117,7 @@ checklist-spa/
 │
 ├── api/                        # Azure Functions API
 │   ├── host.json
+│   ├── jest.config.js
 │   ├── package.json
 │   ├── local.settings.json     # Local dev settings (not deployed)
 │   └── tasks/
@@ -120,6 +125,7 @@ checklist-spa/
 │       ├── index.js            # API handler
 │       └── index.test.js       # Tests
 │
+├── CLAUDE.md                   # Project context for Claude Code
 └── README.md
 ```
 
@@ -250,14 +256,11 @@ const CONFIG = {
 # API tests
 cd api && npm test
 
-# QuickTrip mutation tests
-npx --prefix api jest --config '{}' --rootDir .. client/quicktrip/quicktrip-mutations.test.js
+# Client tests
+cd client && npm test
 
-# SwarmSpace store tests
-npx --prefix api jest --config '{}' --rootDir .. client/swarmspace/swarmspace-store.test.js
-
-# All client + API tests
-npx --prefix api jest --config '{}' --rootDir .. --testMatch '**/*.test.js'
+# Both
+cd api && npm test && cd ../client && npm test
 ```
 
 ## Using the App

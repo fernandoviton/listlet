@@ -72,6 +72,7 @@ module.exports = async function (context, req) {
     }
 
     const containerClient = blobServiceClient.getContainerClient(containerName);
+    await containerClient.createIfNotExists();
     const blobClient = containerClient.getBlockBlobClient(blobName);
 
     try {

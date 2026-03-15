@@ -120,7 +120,8 @@ function createMockBlobClient(options = {}) {
     };
 
     const mockContainerClient = {
-        getBlockBlobClient: jest.fn().mockReturnValue(mockBlockBlobClient)
+        getBlockBlobClient: jest.fn().mockReturnValue(mockBlockBlobClient),
+        createIfNotExists: jest.fn().mockResolvedValue({ succeeded: true })
     };
 
     const mockBlobServiceClient = {
@@ -193,6 +194,33 @@ describe('CORS Handling', () => {
         expect(context.res.headers['Access-Control-Allow-Origin']).toBe('https://nice-mud-08d29c61e.1.azurestaticapps.net');
         expect(context.res.headers['Access-Control-Allow-Methods']).toBe('GET, PUT, POST, DELETE, PATCH, OPTIONS');
         expect(context.res.headers['Access-Control-Allow-Headers']).toBe('Content-Type');
+    });
+});
+
+// ============ CONTAINER AUTO-CREATION ============
+
+describe('Container auto-creation', () => {
+    test('calls createIfNotExists on the container before any operation', async () => {
+        const mocks = createMockBlobClient({ session: { ...EMPTY_SESSION } });
+        const context = createContext();
+        const req = createRequest('GET');
+
+        await handler(context, req);
+
+        expect(mocks.containerClient.createIfNotExists).toHaveBeenCalledTimes(1);
+    });
+
+    test('PUT to new container auto-creates it and saves blob', async () => {
+        const mocks = createMockBlobClient();
+        const context = createContext('new-trip', 'quicktrip');
+        const newDoc = { title: 'My Trip', participants: [], dates: [] };
+        const req = createRequest('PUT', newDoc);
+
+        await handler(context, req);
+
+        expect(mocks.containerClient.createIfNotExists).toHaveBeenCalledTimes(1);
+        expect(context.res.status).toBe(200);
+        expect(mocks.upload).toHaveBeenCalled();
     });
 });
 
@@ -1125,6 +1153,7 @@ describe('Integration Scenarios', () => {
 
         BlobServiceClient.mockImplementation(() => ({
             getContainerClient: () => ({
+                createIfNotExists: jest.fn().mockResolvedValue({ succeeded: true }),
                 getBlockBlobClient: () => ({
                     upload: mockUpload,
                     download: mockDownload
@@ -1192,6 +1221,7 @@ describe('Integration Scenarios', () => {
 
         BlobServiceClient.mockImplementation(() => ({
             getContainerClient: () => ({
+                createIfNotExists: jest.fn().mockResolvedValue({ succeeded: true }),
                 getBlockBlobClient: () => ({
                     upload: mockUpload,
                     download: mockDownload
