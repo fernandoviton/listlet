@@ -1,5 +1,6 @@
 # Local config override (optional, for local dev with different settings)
 client/config.local.js
+client/config.local.js.off
 
 # Tasks file - contains specific tasks (legacy location)
 azure-function/tasks.json

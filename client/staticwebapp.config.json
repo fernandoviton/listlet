@@ -1,7 +1,7 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/swarmspace/*", "/tasks/*", "*.{css,js,json,png,jpg,jpeg,gif,ico,svg}"]
+    "exclude": ["/api/*", "/swarmspace/*", "/tasks/*", "/quicktrip/*", "*.{css,js,json,png,jpg,jpeg,gif,ico,svg}"]
   },
   "routes": [
     {
@@ -11,6 +11,10 @@
     {
       "route": "/swarmspace",
       "redirect": "/swarmspace/"
+    },
+    {
+      "route": "/quicktrip",
+      "redirect": "/quicktrip/"
     },
     {
       "route": "/api/*",

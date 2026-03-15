@@ -1,7 +1,7 @@
 # Task List SPA
 
 ## Overview
-A simple, responsive task list application that displays tasks with multiple states. Supports **multiple lists** via URL parameters (`?list=mylist`). Also includes **SwarmSpace**, a collaborative RPG session tracker with real-time sync.
+A simple, responsive task list application that displays tasks with multiple states. Supports **multiple lists** via URL parameters (`?list=mylist`). Also includes **SwarmSpace**, a collaborative RPG session tracker with real-time sync, and **QuickTrip**, a collaborative trip date planner.
 
 Tasks are persisted via an Azure Static Web App with a managed API backed by Azure Blob Storage.
 
@@ -9,13 +9,15 @@ Tasks are persisted via an Azure Static Web App with a managed API backed by Azu
 
 ```
 ┌─────────────────────┐     ┌─────────────────────────────┐
-│  Azure Static Web   │     │  Azure Blob Storage         │
-│  App (SPA + API)    │────▶│  tasks container: lists     │
-│  /api/store/{c}/{n} │     │  swarm container: sessions  │
-└─────────────────────┘     └─────────────────────────────┘
+│  Azure Static Web   │     │  Azure Blob Storage           │
+│  App (SPA + API)    │────▶│  tasks container: lists       │
+│  /api/store/{c}/{n} │     │  swarm container: sessions    │
+└─────────────────────┘     │  quicktrip container: trips   │
+                            └───────────────────────────────┘
 
-URL: /tasks/?list=grocery     →  API: /api/store/tasks/grocery  →  tasks/grocery.json
-URL: /swarmspace/?list=game1  →  API: /api/store/swarm/game1    →  swarm/game1.json
+URL: /tasks/?list=grocery     →  API: /api/store/tasks/grocery      →  tasks/grocery.json
+URL: /swarmspace/?list=game1  →  API: /api/store/swarm/game1        →  swarm/game1.json
+URL: /quicktrip/?list=trip1   →  API: /api/store/quicktrip/trip1    →  quicktrip/trip1.json
 ```
 
 ## URL Structure
@@ -27,6 +29,7 @@ URL: /swarmspace/?list=game1  →  API: /api/store/swarm/game1    →  swarm/gam
 /tasks/?list=grocery           → Task list for "grocery"
 /tasks/                        → Task list with default list name
 /swarmspace/?list=game1        → SwarmSpace RPG tracker
+/quicktrip/?list=trip1         → QuickTrip date planner
 ```
 
 ## Data Formats
@@ -41,6 +44,20 @@ URL: /swarmspace/?list=game1  →  API: /api/store/swarm/game1    →  swarm/gam
 ```
 
 **Status values:** `not-started` | `in-progress` | `needs-review` | `done` | `removed`
+
+### QuickTrip: `{tripName}.json`
+```json
+{
+  "title": "Summer 2026 Trip",
+  "participants": [
+    { "id": "abc123", "name": "Alice" }
+  ],
+  "dates": [
+    { "id": "def456", "participantId": "abc123", "date": "2026-07-01", "type": "available" },
+    { "id": "ghi789", "participantId": "abc123", "date": "2026-07-05", "type": "blocked" }
+  ]
+}
+```
 
 ### SwarmSpace Session: `{sessionName}.json`
 ```json
@@ -79,12 +96,20 @@ checklist-spa/
 │   │   ├── task-store.js       # State management
 │   │   └── task-mutations.js   # Pure mutation functions
 │   │
-│   └── swarmspace/             # RPG session tracker
+│   ├── swarmspace/             # RPG session tracker
+│   │   ├── index.html
+│   │   ├── swarmspace.js       # UI logic
+│   │   ├── swarmspace.css
+│   │   ├── swarmspace-store.js # State management
+│   │   └── sync.js             # Multi-user sync polling
+│   │
+│   └── quicktrip/              # Trip date planner
 │       ├── index.html
-│       ├── swarmspace.js       # UI logic
-│       ├── swarmspace.css
-│       ├── swarmspace-store.js # State management
-│       └── sync.js             # Multi-user sync polling
+│       ├── quicktrip.js        # UI logic
+│       ├── quicktrip.css
+│       ├── quicktrip-mutations.js      # Pure mutation functions
+│       ├── quicktrip-mutations.test.js # Tests
+│       └── quicktrip-store.js  # State management
 │
 ├── api/                        # Azure Functions API
 │   ├── host.json
@@ -121,6 +146,7 @@ az storage account create --name $APP_NAME --resource-group $RG --location $LOCA
 # Create blob containers
 az storage container create --name tasks --account-name $APP_NAME --auth-mode login
 az storage container create --name swarm --account-name $APP_NAME --auth-mode login
+az storage container create --name quicktrip --account-name $APP_NAME --auth-mode login
 
 # Create Static Web App (includes managed API)
 az staticwebapp create --name $APP_NAME --resource-group $RG --location $LOCATION --sku Free
@@ -189,18 +215,49 @@ az --% staticwebapp appsettings set --name <app-name> --resource-group <rg> --se
 
 ## Local Development
 
-### Mock Mode (No Azure)
-Set `API_BASE: 'mock'` in `client/config.js` to use localStorage instead of the API.
+### Quick Start
+
+```bash
+python -m http.server 8000 -d client
+```
+
+Open http://localhost:8000/quicktrip/?list=test (or `/tasks/`, `/swarmspace/`).
+
+On localhost, mock mode activates automatically (data stored in localStorage).
+No backend or config needed for a fresh clone.
+
+### Pointing to a real API
+
+Create `client/config.local.js` (gitignored):
+
+```js
+const CONFIG = {
+    API_BASE_TASKS: 'https://your-app.azurestaticapps.net/api/store/tasks',
+    API_BASE_SWARM: 'https://your-app.azurestaticapps.net/api/store/swarm',
+    API_BASE_QUICKTRIP: 'https://your-app.azurestaticapps.net/api/store/quicktrip',
+    DEFAULT_LIST_NAME: 'tasks'
+};
+```
 
 ### With Local API
 1. Copy `api/local.settings.json` and add your `BLOB_SAS_URL`
 2. Run `cd api && npm install && npm start`
-3. Set `API_BASE: 'http://localhost:7071/api/tasks'` in config.js
-4. Open `client/` files in a local server
+3. Set API bases to `http://localhost:7071/api/store/...` in `config.local.js`
+4. Serve client files as above
 
 ### Run Tests
 ```bash
+# API tests
 cd api && npm test
+
+# QuickTrip mutation tests
+npx --prefix api jest --config '{}' --rootDir .. client/quicktrip/quicktrip-mutations.test.js
+
+# SwarmSpace store tests
+npx --prefix api jest --config '{}' --rootDir .. client/swarmspace/swarmspace-store.test.js
+
+# All client + API tests
+npx --prefix api jest --config '{}' --rootDir .. --testMatch '**/*.test.js'
 ```
 
 ## Using the App
@@ -217,6 +274,13 @@ cd api && npm test
 - **Features:** Week tracking, resources, locations, NPCs, comments
 - **Create next session:** One-click export + create + import into a new session (auto-increments session name)
 
+### QuickTrip
+- **Create trip:** `/quicktrip/` landing page or `/quicktrip/?list=summer26`
+- **Add people:** Click "+ Person" to add participants
+- **Mark dates:** Select a person (click their card), then click calendar days to cycle: available (green) → blocked (red) → unmarked
+- **View overlap:** Calendar color-codes days by group availability (all available / some / mixed / blocked)
+- **Multi-user:** Changes sync every 15 seconds, share the URL with friends
+
 ## Managing Data via CLI
 
 ```bash
@@ -225,6 +289,9 @@ az storage blob list --container-name tasks --account-name $APP_NAME --auth-mode
 
 # List swarm sessions
 az storage blob list --container-name swarm --account-name $APP_NAME --auth-mode login --query "[].name" -o tsv
+
+# List quicktrip plans
+az storage blob list --container-name quicktrip --account-name $APP_NAME --auth-mode login --query "[].name" -o tsv
 
 # Download a task list
 az storage blob download --container-name tasks --account-name $APP_NAME --name "grocery.json" --file grocery.json --auth-mode login

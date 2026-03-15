@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickTrip - Trip Planner</title>
+    <link rel="stylesheet" href="/shared/common.css">
+    <link rel="stylesheet" href="/quicktrip/quicktrip.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>QuickTrip</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary btn-small" id="addParticipantBtn">+ Person</button>
+            </div>
+        </header>
+
+        <input type="text" class="trip-title" id="tripTitle" placeholder="Trip name (e.g., Summer 2026 Trip)">
+
+        <!-- Participants -->
+        <div class="participants-section" id="participantsContainer">
+            <div class="loading">Loading trip...</div>
+        </div>
+
+        <!-- Calendar -->
+        <div class="calendar-section">
+            <div id="activeIndicator" class="active-indicator" style="display:none"></div>
+            <div class="calendar-nav">
+                <button id="prevMonthBtn">&larr;</button>
+                <span class="calendar-month-label" id="monthLabel"></span>
+                <button id="nextMonthBtn">&rarr;</button>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+            <div class="calendar-legend" id="calendarLegend"></div>
+        </div>
+
+    </div>
+
+    <div class="saving-indicator" id="savingIndicator">Saving...</div>
+    <div id="syncStatus" class="sync-status" onclick="QuickTripUI.manualRefresh()">Synced</div>
+    <div id="errorDisplay" class="error-display"></div>
+
+    <!-- Tooltip for calendar hover -->
+    <div class="calendar-tooltip" id="calendarTooltip"></div>
+
+    <!-- Add participant modal -->
+    <div class="modal-overlay" id="participantModal">
+        <div class="modal">
+            <h3>Add Person</h3>
+            <input type="text" id="participantName" placeholder="Name..." autocomplete="off">
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="cancelParticipantBtn">Cancel</button>
+                <button class="modal-btn primary" id="saveParticipantBtn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/config-loader.js"></script>
+    <script src="/shared/utils.js"></script>
+    <script src="/shared/api.js"></script>
+    <script src="/quicktrip/quicktrip-mutations.js"></script>
+    <script src="/quicktrip/quicktrip-store.js"></script>
+    <script src="/swarmspace/sync.js"></script>
+    <script src="/quicktrip/quicktrip.js"></script>
+    <script>
+        if (hasExplicitListName()) {
+            QuickTripUI.init(getListName());
+        } else {
+            QuickTripUI.showListSelector();
+        }
+    </script>
+</body>
+</html>

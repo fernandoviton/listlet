@@ -21,7 +21,10 @@ function createApi(listName, baseUrl) {
         async fetchTasks(mockDefault = []) {
             if (isMock) {
                 const saved = localStorage.getItem(`mockTasks_${listName}`);
-                return saved ? JSON.parse(saved) : mockDefault;
+                if (saved) return JSON.parse(saved);
+                // Persist the default so appendItem/patchItem find it
+                localStorage.setItem(`mockTasks_${listName}`, JSON.stringify(mockDefault));
+                return mockDefault;
             }
 
             const response = await fetch(`${baseUrl}/${listName}`);

@@ -12,21 +12,33 @@
 
     // Only try config.local.js on localhost
     if (isLocalhost) {
+        let foundLocal = false;
         try {
             const xhr = new XMLHttpRequest();
             xhr.open('GET', '/config.local.js', false); // synchronous
             xhr.send();
             if (xhr.status === 200) {
-                // Execute in global scope
                 const script = document.createElement('script');
                 script.textContent = xhr.responseText;
                 document.head.appendChild(script);
                 console.log('[Config] Loaded config.local.js');
-                return;
+                foundLocal = true;
             }
         } catch (e) {
-            // config.local.js doesn't exist, fall through to config.js
+            // config.local.js doesn't exist, fall through
         }
+
+        if (!foundLocal) {
+            // No local config — auto-mock so fresh clones work
+            window.CONFIG = {
+                API_BASE_TASKS: 'mock',
+                API_BASE_SWARM: 'mock',
+                API_BASE_QUICKTRIP: 'mock',
+                DEFAULT_LIST_NAME: 'tasks'
+            };
+            console.log('[Config] Localhost with no config.local.js — using mock mode (localStorage)');
+        }
+        return;
     }
 
     // Fall back to config.js
