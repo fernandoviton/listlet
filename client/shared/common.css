@@ -46,6 +46,8 @@ h1 {
     font-size: 0.875rem;
     opacity: 0;
     transition: opacity 0.2s;
+    z-index: 1000;
+    pointer-events: none;
 }
 
 .saving-indicator.visible {

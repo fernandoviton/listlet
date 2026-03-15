@@ -26,28 +26,31 @@ const QuickTripUI = (function() {
             const data = await api.fetchTasks(QuickTripMutations.createDefault());
             QuickTripStore.setDoc(data);
             render();
-
-            SwarmSpaceSync.init(api, function(serverData) {
-                QuickTripStore.setDoc(serverData);
-                render();
-            });
         } catch (err) {
             if (err.code === 'NOT_FOUND') {
-                // New trip - save default doc
-                const defaultDoc = QuickTripMutations.createDefault();
-                await api.saveTasks(function(d) {
-                    Object.assign(d, defaultDoc);
-                });
-                QuickTripStore.setDoc(defaultDoc);
+                // New trip - render default immediately, then create on server
+                QuickTripStore.setDoc(QuickTripMutations.createDefault());
                 render();
-
-                SwarmSpaceSync.init(api, function(serverData) {
-                    QuickTripStore.setDoc(serverData);
-                    render();
-                });
+                await createList();
             } else {
                 showError(err.message);
             }
+        }
+
+        SwarmSpaceSync.init(api, function(serverData) {
+            QuickTripStore.setDoc(serverData);
+            render();
+        });
+    }
+
+    async function createList() {
+        try {
+            const doc = QuickTripStore.getDoc();
+            await api.saveTasks(function(d) {
+                Object.assign(d, doc);
+            });
+        } catch (err) {
+            showError('Failed to create trip: ' + err.message);
         }
     }
 
